@@ -1,6 +1,8 @@
 const std = @import("std");
 
 const Socket = @import("./Socket.zig");
+const Sender = @import("../message/Sender.zig");
+const Receiver = @import("../message/Receiver.zig");
 
 pub const Sync = struct {
     socket: Socket,
@@ -14,20 +16,50 @@ pub const Sync = struct {
     }
 
     pub fn deinit(_: *Self) void {}
+
+    pub fn iter(self: Self) PipeIter {
+        return .{
+            .item = .{ .socket = self.socket },
+        };
+    }
+
+    pub const Item = struct {
+        socket: Socket,
+
+        pub fn sender(self: @This()) Sender {
+            return .{ .socket = self.socket };
+        }
+
+        pub fn receiver(self: @This()) Receiver {
+            return .{ .socket = self.socket };
+        }
+    };
+
+    pub const PipeIter = struct {
+        index: usize = 0,
+        item: Item,
+
+        pub fn next(self: *@This()) ?Item {
+            if (self.index > 0) return null;
+
+            self.index += 1;
+            return self.item;
+        }
+    };
 };
 
 pub const Parallel = struct {
     socket: Socket,
-    pipes: std.ArrayListUnmanaged(AioInner),
+    items: std.ArrayListUnmanaged(AioInner),
 
     const Self = @This();
 
     pub fn create(allocator: std.mem.Allocator, socket: Socket, count: usize) !Self {
-        const pipes = try std.ArrayListUnmanaged(AioInner).initCapacity(allocator, count);
+        const items = try std.ArrayListUnmanaged(AioInner).initCapacity(allocator, count);
 
         return .{
             .socket = socket,
-            .pipes = pipes,
+            .items = items,
         };
     }
 

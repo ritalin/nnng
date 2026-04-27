@@ -8,7 +8,7 @@ const OpenError = root.OpenError;
 
 pub fn open(ctx: Context) OpenError!OpenError!Socket.SyncBuilder(Rep) {
     var raw_socket: c.nng_socket = undefined;
-    const err = c.nng_req0_open(&raw_socket);
+    const err = c.nng_rep0_open(&raw_socket);
     if (err != 0) {
         return errors.open_error(err);
     }

@@ -4,7 +4,12 @@ const c = @import("c");
 
 pub const Context = @import("./Context.zig");
 pub const Socket = @import("./socket/Socket.zig");
+pub const Transport = @import("./socket/Transport.zig");
+pub const Pipe = @import("./socket/Pipe.zig");
+pub const Message = @import("./message/Message.zig");
+
 pub const req = @import("./protocols/req.zig");
+pub const rep = @import("./protocols/rep.zig");
 
 pub const InitializeError = error { AlreadyInited };
 pub const OpenError = (std.mem.Allocator.Error || error { NotSupported });
@@ -19,19 +24,17 @@ pub const StartTransportError = (
     std.mem.Allocator.Error || error { ProtocolError, AlreadyStarted, FailureAuth, Unreachable }
 );
 
+pub const MessageAllocError = std.mem.Allocator.Error;
 
+pub const SendError = (
+    error { Blocked, TooLargeSize, NotSupported, Unreachable, Timeout } ||
+    CloseError || InvalidError || std.mem.Allocator.Error
+);
 
-
-
-
-pub const testing = struct {
-    pub fn make_ipc_sock(dir: std.Io.Dir, file_name: []const u8) anyerror![]const u8 {
-        const sock_path = try dir.realPathFileAlloc(std.testing.io, ".", std.testing.allocator);
-        defer std.testing.allocator.free(sock_path);
-
-        return std.fmt.allocPrint(std.testing.allocator, "ipc://{s}/{s}", .{ sock_path, file_name });
-    }
-};
+pub const ReceiveError = (
+    error { Blocked, NotSupported, Unreachable, Timeout } ||
+    CloseError || InvalidError || std.mem.Allocator.Error
+);
 
 test "all_tests" {
     std.testing.refAllDecls(@This());

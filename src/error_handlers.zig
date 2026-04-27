@@ -64,3 +64,56 @@ pub fn start_transport_error(err: i32) root.StartTransportError {
     }
     unreachable;
 }
+
+pub fn send_error(err: i32) root.SendError {
+    if (err == c.NNG_EAGAIN) {
+        return error.Blocked;
+    }
+    if (err == c.NNG_ECLOSED) {
+        return error.AlreadyClosed;
+    }
+    if (err == c.NNG_EINVAL) {
+        return error.InvalidValue;
+    }
+    if (err == c.NNG_EMSGSIZE) {
+        return error.TooLargeSize;
+    }
+    if (err == c.NNG_ENOMEM) {
+        return error.OutOfMemory;
+    }
+    if (err == c.NNG_ENOTSUP) {
+        return error.NotSupported;
+    }
+    if (err == c.NNG_ESTATE) {
+        return error.Unreachable;
+    }
+    if (err == c.NNG_ETIMEDOUT) {
+        return error.Timeout;
+    }
+    unreachable;
+}
+
+pub fn receive_error(err: i32) root.SendError {
+    if (err == c.NNG_EAGAIN) {
+        return error.Blocked;
+    }
+    if (err == c.NNG_ECLOSED) {
+        return error.AlreadyClosed;
+    }
+    if (err == c.NNG_EINVAL) {
+        return error.InvalidValue;
+    }
+    if (err == c.NNG_ENOMEM) {
+        return error.OutOfMemory;
+    }
+    if (err == c.NNG_ENOTSUP) {
+        return error.NotSupported;
+    }
+    if (err == c.NNG_ESTATE) {
+        return error.Unreachable;
+    }
+    if (err == c.NNG_ETIMEDOUT) {
+        return error.Timeout;
+    }
+    unreachable;
+}

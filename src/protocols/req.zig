@@ -5,6 +5,8 @@ const c = @import("c");
 
 const Context = root.Context;
 const Socket = root.Socket;
+const Transport = root.Transport;
+const Pipe = root.Pipe;
 const OpenError = root.OpenError;
 const CloseError = root.CloseError;
 
@@ -18,14 +20,14 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
     return Socket.SyncBuilder(Req).init(Socket.init(ctx, raw_socket));
 }
 
-pub fn Req(comptime Transport: type, comptime Pipe: type) type {
+pub fn Req(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
-        transport: Transport,
-        pipe: Pipe,
+        transport: TTransport,
+        pipe: TPipe,
 
         const Self = @This();
 
-        pub fn init(transport: Transport, pipe: Pipe) Self {
+        pub fn init(transport: TTransport, pipe: TPipe) Self {
             return .{
                 .transport = transport,
                 .pipe = pipe,
@@ -46,6 +48,8 @@ test "REQ tests" {
 
 pub const tests = struct {
     const rep = @import("./rep.zig");
+    const Message = @import("../message/Message.zig");
+    const Receiver = @import("../message/Receiver.zig");
 
     test "new REQ socket" {
         var tmp = std.testing.tmpDir(.{});
@@ -76,4 +80,91 @@ pub const tests = struct {
         try socket.transport.start();
         defer socket.close();
     }
+
+    test "REQ/REP communication" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try root.testing.make_ipc_sock(tmp.dir, "req_rep.sock");
+        defer std.testing.allocator.free(url);
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REQ socket
+        var rep_socket: rep.Rep(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try try rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start();
+        defer rep_socket.close();
+
+        // Open REP socket
+        var req_socket: Req(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket.transport.start();
+        defer req_socket.close();
+
+        // get pipe
+        const req_pipe = iter: {
+            var iter = req_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+        const rep_pipe = iter: {
+            var iter = rep_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+
+        var msg = try Message.create();
+        defer msg.deinit();
+        var callback_ctx: TestCallbackContext = undefined;
+
+        // REQ (send)
+        const v0 = "Hello";
+        try msg.writer.writeAll(v0);
+        try msg.writer.flush(); // Need to sync written length
+        try req_pipe.sender().submit_message(msg, .{});
+
+        // REP (recv)
+        callback_ctx = .{
+            .allocator = std.testing.allocator,
+            .receiver = rep_pipe.receiver(),
+            .msg = null,
+        };
+        try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
+
+        msg = callback_ctx.msg.?;
+        const v1 = try callback_ctx.allocator.dupe(u8, msg.bytes()); // Prevent in-place overwrite of the source buffer during write.
+        defer callback_ctx.allocator.free(v1);
+        try std.testing.expectEqualStrings(v0, v1);
+
+        // REP (send)
+        msg.writer.end = 0;
+        try msg.writer.print("{s}{s}", .{ v1, v1 });
+        try msg.writer.flush();
+        try rep_pipe.sender().submit_message(msg, .{});
+
+        // REQ (recv)
+        callback_ctx = .{
+            .allocator = std.testing.allocator,
+            .receiver = req_pipe.receiver(),
+            .msg = null,
+        };
+        try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
+
+        msg = callback_ctx.msg.?;
+        const v2 = msg.bytes();
+        try std.testing.expectEqualStrings("HelloHello", v2);
+    }
+
+    const TestCallbackContext = struct {
+        allocator: std.mem.Allocator,
+        receiver: Receiver,
+        msg: ?Message,
+
+        pub fn do_receive(receiver: *Receiver, msg: Message) !void {
+            var self: *TestCallbackContext = @fieldParentPtr("receiver", receiver);
+            self.msg = msg;
+        }
+    };
 };
