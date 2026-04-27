@@ -1,25 +1,23 @@
 const std = @import("std");
 const root = @import("../root.zig");
-const errors = @import("../error_handlers.zig");
-const c = @import("c");
 
 const Socket = root.Socket;
 const Message = root.Message;
 const SendError = root.SendError;
 
-socket: Socket,
+owner: *anyopaque,
+on_submit: *const fn (owner: *anyopaque, msg: Message, options: Options) SendError!void,
 
 const Self = @This();
+const Sender = Self;
 const Option = enum { nonblocking };
 
 pub const Options = std.enums.EnumFieldStruct(Option, bool, false);
 
-pub fn submit_message(self: Self, msg: Message, options: Options) SendError!void {
-    const flags = std.enums.EnumSet(Option).init(options);
-    std.log.debug("Start sending/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
+pub fn default() Self {
 
-    const err = c.nng_sendmsg(self.socket.raw_socket, msg.raw_msg, flags.bits.mask);
-    if (err != 0) {
-        return errors.send_error(err);
-    }
+}
+
+pub fn submit_message(self: Self, msg: Message, options: Options) SendError!void {
+    return (self.on_submit)(self.owner, msg, options);
 }

@@ -1,8 +1,12 @@
 const std = @import("std");
+const errors = @import("../error_handlers.zig");
+const c = @import("c");
 
 const Socket = @import("./Socket.zig");
 const Sender = @import("../message/Sender.zig");
+const Message = @import("../message/Message.zig");
 const Receiver = @import("../message/Receiver.zig");
+const SendError = @import("../root.zig").SendError;
 
 pub const Sync = struct {
     socket: Socket,
@@ -26,8 +30,10 @@ pub const Sync = struct {
     pub const Item = struct {
         socket: Socket,
 
-        pub fn sender(self: @This()) Sender {
-            return .{ .socket = self.socket };
+        pub fn sender(self: *@This()) Sender {
+            return .{
+                .owner = self,
+                .on_submit = SenderImpl.submit_message };
         }
 
         pub fn receiver(self: @This()) Receiver {
@@ -44,6 +50,20 @@ pub const Sync = struct {
 
             self.index += 1;
             return self.item;
+        }
+    };
+
+    const SenderImpl = struct {
+        fn submit_message(owner: *anyopaque, msg: Message, options: Receiver.Options) SendError!void {
+            const pipe: *Sync.Item = @ptrCast(@alignCast(owner));
+
+            const flags = std.enums.EnumSet(Receiver.Option).init(options);
+            std.log.debug("Start sending/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
+
+            const err = c.nng_sendmsg(pipe.socket.raw_socket, msg.raw_msg, flags.bits.mask);
+            if (err != 0) {
+                return errors.send_error(err);
+            }
         }
     };
 };

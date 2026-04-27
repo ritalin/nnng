@@ -48,13 +48,15 @@ test "REQ tests" {
 
 pub const tests = struct {
     const rep = @import("./rep.zig");
+    const test_support = @import("../supports/test.zig");
+
     const Message = @import("../message/Message.zig");
     const Receiver = @import("../message/Receiver.zig");
 
     test "new REQ socket" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try root.testing.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -69,7 +71,7 @@ pub const tests = struct {
     test "new REP socket" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try root.testing.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -84,7 +86,7 @@ pub const tests = struct {
     test "REQ/REP communication" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try root.testing.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -106,11 +108,11 @@ pub const tests = struct {
         defer req_socket.close();
 
         // get pipe
-        const req_pipe = iter: {
+        var req_pipe = iter: {
             var iter = req_socket.pipe.iter();
             break:iter iter.next() orelse unreachable;
         };
-        const rep_pipe = iter: {
+        var rep_pipe = iter: {
             var iter = rep_socket.pipe.iter();
             break:iter iter.next() orelse unreachable;
         };

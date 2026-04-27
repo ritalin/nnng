@@ -10,8 +10,8 @@ socket: Socket,
 
 const Self = @This();
 const Receiver = Self;
-const Option = enum { nonblocking };
 
+pub const Option = enum { nonblocking };
 pub const Options = std.enums.EnumFieldStruct(Option, bool, false);
 
 pub fn drain(self: *Self, callback: *const fn (receiver: *Receiver, msg: Message) anyerror!void, options: Options) anyerror!void {
