@@ -8,6 +8,7 @@ const Sender = @import("../message/Sender.zig");
 const Message = @import("../message/Message.zig");
 const Receiver = @import("../message/Receiver.zig");
 const SendError = root.SendError;
+const ReceiveError = root.ReceiveError;
 
 pub const Sync = struct {
     socket: Socket,
@@ -59,7 +60,7 @@ pub const Sync = struct {
     };
 
     const SenderImpl = struct {
-        fn submit_message(sender: *Sender, msg: Message, options: Receiver.Options) SendError!void {
+        fn submit_message(sender: *const Sender, msg: Message, options: Receiver.Options) SendError!void {
             const pipe: *Sync.Item = @ptrCast(@alignCast(sender.owner));
 
             const flags = std.enums.EnumSet(Receiver.Option).init(options);
@@ -73,7 +74,7 @@ pub const Sync = struct {
     };
 
     const ReceiverImpl = struct {
-        fn drain_message(receiver: *Receiver, callback: Receiver.DrainCallback, options: Receiver.Options) anyerror!void {
+        fn drain_message(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
             const pipe: *Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
             const flags = std.enums.EnumSet(Receiver.Option).init(options);
@@ -87,7 +88,7 @@ pub const Sync = struct {
             const msg = Message.from_raw(raw_msg.?);
             std.log.debug("Start receiving/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
 
-            return callback(receiver, msg);
+            return msg;
         }
     };
 };

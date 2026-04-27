@@ -120,61 +120,37 @@ pub const tests = struct {
 
         var msg = try Message.create();
         defer msg.deinit();
-        var callback_ctx: TestCallbackContext = undefined;
 
+        //
         // One-way path
-        callback_ctx = .{
-            .allocator = std.testing.allocator,
-            .sender = req_pipe.sender(),
-            .receiver = rep_pipe.receiver(),
-            .msg = null,
-        };
+        //
 
         // REQ (send)
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try callback_ctx.sender.submit_message(msg, .{});
+        try req_pipe.sender().submit(msg, .{});
 
         // REP (recv)
-        try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
+        msg = try rep_pipe.receiver().drain(.{});
 
-        msg = callback_ctx.msg.?;
-        const v1 = try callback_ctx.allocator.dupe(u8, msg.bytes()); // Prevent in-place overwrite of the source buffer during write.
-        defer callback_ctx.allocator.free(v1);
+        const v1 = try std.testing.allocator.dupe(u8, msg.bytes()); // Prevent in-place overwrite of the source buffer during write.
+        defer std.testing.allocator.free(v1);
         try std.testing.expectEqualStrings(v0, v1);
 
+        //
         // Return path
-        callback_ctx = .{
-            .allocator = std.testing.allocator,
-            .sender = rep_pipe.sender(),
-            .receiver = req_pipe.receiver(),
-            .msg = null,
-        };
+        //
 
         // REP (send)
         msg.writer.end = 0;
         try msg.writer.print("{s}{s}", .{ v1, v1 });
         try msg.writer.flush();
-        try callback_ctx.sender.submit_message(msg, .{});
+        try rep_pipe.sender().submit(msg, .{});
 
         // REQ (recv)
-        try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
-
-        msg = callback_ctx.msg.?;
+        msg = try req_pipe.receiver().drain(.{});
         const v2 = msg.bytes();
         try std.testing.expectEqualStrings("HelloHello", v2);
     }
-
-    const TestCallbackContext = struct {
-        allocator: std.mem.Allocator,
-        sender: Sender,
-        receiver: Receiver,
-        msg: ?Message,
-
-        pub fn do_receive(receiver: *Receiver, msg: Message) !void {
-            var self: *TestCallbackContext = @fieldParentPtr("receiver", receiver);
-            self.msg = msg;
-        }
-    };
 };

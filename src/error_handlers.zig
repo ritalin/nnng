@@ -93,7 +93,7 @@ pub fn send_error(err: i32) root.SendError {
     unreachable;
 }
 
-pub fn receive_error(err: i32) root.SendError {
+pub fn receive_error(err: i32) root.ReceiveError {
     if (err == c.NNG_EAGAIN) {
         return error.Blocked;
     }

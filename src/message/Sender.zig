@@ -6,12 +6,12 @@ const Message = root.Message;
 const SendError = root.SendError;
 
 owner: *anyopaque,
-on_submit: *const fn (sender: *Sender, msg: Message, options: Options) SendError!void,
+on_submit: *const fn (sender: *const Sender, msg: Message, options: Options) SendError!void,
 
 const Self = @This();
 const Sender = Self;
 
-pub fn submit_message(self: *Self, msg: Message, options: Options) SendError!void {
+pub fn submit(self: *const Self, msg: Message, options: Options) SendError!void {
     return (self.on_submit)(self, msg, options);
 }
 
