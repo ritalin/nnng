@@ -1,4 +1,5 @@
 const std = @import("std");
+const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
@@ -6,7 +7,7 @@ const Socket = @import("./Socket.zig");
 const Sender = @import("../message/Sender.zig");
 const Message = @import("../message/Message.zig");
 const Receiver = @import("../message/Receiver.zig");
-const SendError = @import("../root.zig").SendError;
+const SendError = root.SendError;
 
 pub const Sync = struct {
     socket: Socket,
@@ -33,11 +34,15 @@ pub const Sync = struct {
         pub fn sender(self: *@This()) Sender {
             return .{
                 .owner = self,
-                .on_submit = SenderImpl.submit_message };
+                .on_submit = SenderImpl.submit_message,
+            };
         }
 
-        pub fn receiver(self: @This()) Receiver {
-            return .{ .socket = self.socket };
+        pub fn receiver(self: *@This()) Receiver {
+            return .{
+                .owner = self,
+                .on_drain = ReceiverImpl.drain_message,
+            };
         }
     };
 
@@ -54,8 +59,8 @@ pub const Sync = struct {
     };
 
     const SenderImpl = struct {
-        fn submit_message(owner: *anyopaque, msg: Message, options: Receiver.Options) SendError!void {
-            const pipe: *Sync.Item = @ptrCast(@alignCast(owner));
+        fn submit_message(sender: *Sender, msg: Message, options: Receiver.Options) SendError!void {
+            const pipe: *Sync.Item = @ptrCast(@alignCast(sender.owner));
 
             const flags = std.enums.EnumSet(Receiver.Option).init(options);
             std.log.debug("Start sending/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
@@ -64,6 +69,25 @@ pub const Sync = struct {
             if (err != 0) {
                 return errors.send_error(err);
             }
+        }
+    };
+
+    const ReceiverImpl = struct {
+        fn drain_message(receiver: *Receiver, callback: Receiver.DrainCallback, options: Receiver.Options) anyerror!void {
+            const pipe: *Sync.Item = @ptrCast(@alignCast(receiver.owner));
+
+            const flags = std.enums.EnumSet(Receiver.Option).init(options);
+
+            var raw_msg: ?*c.nng_msg = null;
+            const err = c.nng_recvmsg(pipe.socket.raw_socket, &raw_msg, flags.bits.mask);
+            if (err != 0) {
+                return errors.receive_error(err);
+            }
+
+            const msg = Message.from_raw(raw_msg.?);
+            std.log.debug("Start receiving/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
+
+            return callback(receiver, msg);
         }
     };
 };

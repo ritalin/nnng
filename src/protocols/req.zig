@@ -51,6 +51,7 @@ pub const tests = struct {
     const test_support = @import("../supports/test.zig");
 
     const Message = @import("../message/Message.zig");
+    const Sender = @import("../message/Sender.zig");
     const Receiver = @import("../message/Receiver.zig");
 
     test "new REQ socket" {
@@ -121,18 +122,21 @@ pub const tests = struct {
         defer msg.deinit();
         var callback_ctx: TestCallbackContext = undefined;
 
+        // One-way path
+        callback_ctx = .{
+            .allocator = std.testing.allocator,
+            .sender = req_pipe.sender(),
+            .receiver = rep_pipe.receiver(),
+            .msg = null,
+        };
+
         // REQ (send)
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try req_pipe.sender().submit_message(msg, .{});
+        try callback_ctx.sender.submit_message(msg, .{});
 
         // REP (recv)
-        callback_ctx = .{
-            .allocator = std.testing.allocator,
-            .receiver = rep_pipe.receiver(),
-            .msg = null,
-        };
         try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
 
         msg = callback_ctx.msg.?;
@@ -140,18 +144,21 @@ pub const tests = struct {
         defer callback_ctx.allocator.free(v1);
         try std.testing.expectEqualStrings(v0, v1);
 
+        // Return path
+        callback_ctx = .{
+            .allocator = std.testing.allocator,
+            .sender = rep_pipe.sender(),
+            .receiver = req_pipe.receiver(),
+            .msg = null,
+        };
+
         // REP (send)
         msg.writer.end = 0;
         try msg.writer.print("{s}{s}", .{ v1, v1 });
         try msg.writer.flush();
-        try rep_pipe.sender().submit_message(msg, .{});
+        try callback_ctx.sender.submit_message(msg, .{});
 
         // REQ (recv)
-        callback_ctx = .{
-            .allocator = std.testing.allocator,
-            .receiver = req_pipe.receiver(),
-            .msg = null,
-        };
         try callback_ctx.receiver.drain(TestCallbackContext.do_receive, .{});
 
         msg = callback_ctx.msg.?;
@@ -161,6 +168,7 @@ pub const tests = struct {
 
     const TestCallbackContext = struct {
         allocator: std.mem.Allocator,
+        sender: Sender,
         receiver: Receiver,
         msg: ?Message,
 
