@@ -4,12 +4,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const pkg_sysroot = b.option([]const u8, "PKG_SYSROOT", "Native dependency root path");
+    const pkg_prefix = b.option([]const u8, "PKG_PREFIX", "pkg prefix path") orelse @panic("Need to specify pkg prefix path");
 
     const c = b.addTranslateC(.{
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path(b.pathResolve(&.{ pkg_sysroot.?, "include/nng/nng.h" })),
+        .root_source_file = .{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include/nng/nng.h" }) },
         .link_libc = true,
     });
 
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    mod.root_module.addLibraryPath(b.path(b.pathResolve(&.{ pkg_sysroot.?, "lib" })));
+    mod.root_module.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
     mod.root_module.linkSystemLibrary("nng", .{});
 
     b.installArtifact(mod);
