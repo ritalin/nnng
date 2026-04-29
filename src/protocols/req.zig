@@ -77,7 +77,7 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket = socket: {
-            var b = try try rep.open(ctx);
+            var b = try rep.open(ctx);
             break:socket try b.as_listener(url);
         };
         try socket.transport.start();
@@ -94,7 +94,7 @@ pub const tests = struct {
 
         // Open REP socket
         var rep_socket: rep.Rep(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try try rep.open(ctx);
+            var b = try rep.open(ctx);
             break:socket try b.as_listener(url);
         };
         try rep_socket.transport.start();
@@ -164,7 +164,7 @@ pub const tests = struct {
 
         // Open REP socket
         var rep_socket: rep.Rep(Transport.Listener, Pipe.Parallel) = socket: {
-            var b = try try rep.open(ctx);
+            var b = try rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
         try rep_socket.transport.start();

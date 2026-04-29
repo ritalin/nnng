@@ -14,6 +14,7 @@ pub const Listener = struct {
 
     pub fn create(socket: Socket, url: []const u8) root.NewTransportError!Self {
         const urlz = try socket.context.allocator.dupeSentinel(u8, url, 0);
+        errdefer socket.context.allocator.free(urlz);
 
         var raw_listener: c.nng_listener = undefined;
         const err = c.nng_listener_create(&raw_listener, socket.raw_socket, urlz);

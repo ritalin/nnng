@@ -6,7 +6,7 @@ const Context = root.Context;
 const Socket = root.Socket;
 const OpenError = root.OpenError;
 
-pub fn open(ctx: Context) OpenError!OpenError!Socket.SyncBuilder(Rep) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_rep0_open(&raw_socket);
     if (err != 0) {
