@@ -7,7 +7,7 @@ const Socket = root.Socket;
 const Message = root.Message;
 const ReceiveError = root.ReceiveError;
 
-owner: *anyopaque,
+owner: *const anyopaque,
 on_drain: *const fn (receiver: *const Receiver, options: Options) ReceiveError!Message,
 
 const Self = @This();

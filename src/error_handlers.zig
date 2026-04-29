@@ -1,7 +1,7 @@
 const root = @import("./root.zig");
 const c = @import("c");
 
-pub fn open_error(err: i32) root.OpenError {
+pub fn open_error(err: c_int) root.OpenError {
     if (err == c.NNG_ENOMEM) {
         return error.OutOfMemory;
     }
@@ -11,14 +11,14 @@ pub fn open_error(err: i32) root.OpenError {
     unreachable;
 }
 
-pub fn close_error(err: i32) root.CloseError {
+pub fn close_error(err: c_int) root.CloseError {
     if (err == c.NNG_ECLOSED) {
         return error.AlreadyClosed;
     }
     unreachable;
 }
 
-pub fn new_transport_error(err: i32) root.NewTransportError {
+pub fn new_transport_error(err: c_int) root.NewTransportError {
     if (err == c.NNG_EADDRINVAL) {
         return error.InvalidUrl;
     }
@@ -31,7 +31,7 @@ pub fn new_transport_error(err: i32) root.NewTransportError {
     unreachable;
 }
 
-pub fn start_transport_error(err: i32) root.StartTransportError {
+pub fn start_transport_error(err: c_int) root.StartTransportError {
     if (err == c.NNG_EADDRINVAL) {
         return error.InvalidUrl;
     }
@@ -65,7 +65,17 @@ pub fn start_transport_error(err: i32) root.StartTransportError {
     unreachable;
 }
 
-pub fn send_error(err: i32) root.SendError {
+pub fn open_aio_pipe_error(err: c_int) root.OpenAioPipeError {
+    if (err == c.NNG_ENOMEM) {
+        return error.OutOfMemory;
+    }
+    if (err == c.NNG_ENOTSUP) {
+        return error.NotSupported;
+    }
+    unreachable;
+}
+
+pub fn send_error(err: c_int) root.SendError {
     if (err == c.NNG_EAGAIN) {
         return error.Blocked;
     }
@@ -93,7 +103,7 @@ pub fn send_error(err: i32) root.SendError {
     unreachable;
 }
 
-pub fn receive_error(err: i32) root.ReceiveError {
+pub fn receive_error(err: c_int) root.ReceiveError {
     if (err == c.NNG_EAGAIN) {
         return error.Blocked;
     }

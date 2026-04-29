@@ -12,7 +12,8 @@ pub const req = @import("./protocols/req.zig");
 pub const rep = @import("./protocols/rep.zig");
 
 pub const InitializeError = error { AlreadyInited };
-pub const OpenError = (std.mem.Allocator.Error || error { NotSupported });
+pub const FeatureError = error { NotSupported };
+pub const OpenError = std.mem.Allocator.Error || FeatureError;
 pub const CloseError = error { AlreadyClosed };
 pub const ConnectionError = error { NotOpened, Refused };
 pub const TransportUrlError = error { InvalidUrl };
@@ -27,14 +28,16 @@ pub const StartTransportError = (
 pub const MessageAllocError = std.mem.Allocator.Error;
 
 pub const SendError = (
-    error { Blocked, TooLargeSize, NotSupported, Unreachable, Timeout } ||
-    CloseError || InvalidError || std.mem.Allocator.Error
+    error { Blocked, TooLargeSize, Unreachable, Timeout } ||
+    FeatureError || CloseError || InvalidError || std.mem.Allocator.Error
 );
 
 pub const ReceiveError = (
     error { Blocked, NotSupported, Unreachable, Timeout } ||
     CloseError || InvalidError || std.mem.Allocator.Error
 );
+
+pub const OpenAioPipeError = FeatureError || std.mem.Allocator.Error;
 
 test "all_tests" {
     std.testing.refAllDecls(@This());

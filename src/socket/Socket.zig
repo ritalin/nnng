@@ -46,16 +46,14 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
             };
         }
 
-        pub fn as_listener(self: *Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Sync) {
-            defer self.* = undefined;
+        pub fn as_listener(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Sync) {
             const listener = try Transport.Listener.create(self.socket, url);
             const pipes = Pipe.Sync.create(self.socket);
 
             return Protocol(Transport.Listener, Pipe.Sync).init(listener, pipes);
         }
 
-        pub fn as_dialer(self: *Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Sync) {
-            defer self.* = undefined;
+        pub fn as_dialer(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Sync) {
             const dialer = try Transport.Dialer.create(self.socket, url);
             const pipes = Pipe.Sync.create(self.socket);
 
@@ -64,25 +62,23 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
     };
 }
 
-pub fn ParallelBuilder(comptime Protocol: type) type {
+pub fn ParallelBuilder(comptime Protocol: *const fn (comptime type, comptime type) type) type {
     return struct {
         socket: Socket,
         count: usize,
 
         const Builder = @This();
 
-        pub fn as_listener(self: *Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Parallel) {
-            defer self.* = undefined;
+        pub fn as_listener(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Parallel) {
             const listener = try Transport.Listener.create(self.socket, url);
-            const pipes = try Pipe.Parallel.create(self.socket.context.allocator, self.socket, self.count);
+            const pipes = try Pipe.Parallel.create(self.socket, self.count);
 
             return Protocol(Transport.Listener, Pipe.Parallel).init(listener, pipes);
         }
 
-        pub fn as_dialer(self: *Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Parallel) {
-            defer self.* = undefined;
-            const dialer = try Transport.Dialer.create(self.socket, self.socket, url);
-            const pipes = try Pipe.Parallel.create(self.socket.context.allocator, self.count);
+        pub fn as_dialer(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Parallel) {
+            const dialer = try Transport.Dialer.create(self.socket, url);
+            const pipes = try Pipe.Parallel.create(self.socket, self.count);
 
             return Protocol(Transport.Dialer, Pipe.Parallel).init(dialer, pipes);
         }

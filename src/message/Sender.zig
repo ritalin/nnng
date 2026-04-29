@@ -5,7 +5,7 @@ const Socket = root.Socket;
 const Message = root.Message;
 const SendError = root.SendError;
 
-owner: *anyopaque,
+owner: *const anyopaque,
 on_submit: *const fn (sender: *const Sender, msg: Message, options: Options) SendError!void,
 
 const Self = @This();
