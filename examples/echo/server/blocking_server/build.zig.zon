@@ -1,0 +1,17 @@
+.{
+    .name = .blocking_server,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0xc3b6785b38e82bd8,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .dependencies = .{
+        .nnng = .{ .path = "../../../.." },
+        .echo_support = .{
+            .path = "../../supports",
+        },
+    },
+}

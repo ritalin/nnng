@@ -1,0 +1,10 @@
+.{
+    .name = .echo,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.16.0",
+    .paths = .{""},
+    .fingerprint = 0x170430320f55b236,
+    .dependencies = .{
+        .blocking_server = .{ .path = "./server/blocking_server" },
+    },
+}

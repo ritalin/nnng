@@ -1,0 +1,17 @@
+.{
+    .name = .supports,
+    .version = "0.0.1",
+    .dependencies = .{
+        .known_folders = .{
+            .url = "git+https://github.com/ziglibs/known-folders.git#5865fd0f1bc5241de8355fcf2066692bf1b0ea02",
+            .hash = "known_folders-0.0.0-Fy-PJpLKAAAmMEnwre7fFcfsxBGULd24N8Bp2pWEu3sf",
+        },
+    },
+    .minimum_zig_version = "0.16.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .fingerprint = 0xbd329c87677e71ab,
+}

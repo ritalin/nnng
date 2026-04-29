@@ -1,0 +1,21 @@
+.{
+    .name = .echo_oneshot,
+    .version = "0.0.1",
+    .dependencies = .{
+        .nnng = .{ .path = "../../../.." },
+        .echo_support = .{
+            .path = "../../supports",
+        },
+        .clap = .{
+            .url = "git+https://github.com/Hejsil/zig-clap#8d97efa1ee1e575443c7888d5c38e1c3fc145cf5",
+            .hash = "clap-0.12.0-oBajB7foAQDqlSwaSG5g0yq7xGbQARUsBk5T64gAOqP5",
+        },
+    },
+    .minimum_zig_version = "0.16.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .fingerprint = 0x5b6f3b6998757b25,
+}
