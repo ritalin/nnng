@@ -10,6 +10,8 @@ const Pipe = root.Pipe;
 const OpenError = root.OpenError;
 const CloseError = root.CloseError;
 
+/// Creates a REQ protocol socket instance.
+/// This is the primary way to construct the type.
 pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_req0_open(&raw_socket);
@@ -20,13 +22,20 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
     return Socket.SyncBuilder(Req).init(Socket.init(ctx, raw_socket));
 }
 
+/// REQ protocol type.
+/// Transport: connection role (Listener or Dialer).
+/// Pipe: message handling model (Sync or Parallel).
 pub fn Req(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
+        /// Transport role.
         transport: TTransport,
+        /// Pipe model.
         pipe: TPipe,
 
         const Self = @This();
 
+        /// Initializes the instance.
+        /// Intended for internal use; prefer open().
         pub fn init(transport: TTransport, pipe: TPipe) Self {
             return .{
                 .transport = transport,
@@ -34,6 +43,7 @@ pub fn Req(comptime TTransport: type, comptime TPipe: type) type {
             };
         }
 
+        /// Releases all associated resources.
         pub fn close(self: *Self) void {
             self.pipe.deinit();
             self.transport.deinit();

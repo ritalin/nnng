@@ -1,3 +1,5 @@
+//! Message sender interface.
+
 const std = @import("std");
 const root = @import("../root.zig");
 
@@ -11,9 +13,15 @@ on_submit: *const fn (sender: *const Sender, msg: Message, options: Options) Sen
 const Self = @This();
 const Sender = Self;
 
+/// Sends a message.
 pub fn submit(self: *const Self, msg: Message, options: Options) SendError!void {
     return (self.on_submit)(self, msg, options);
 }
 
-pub const Option = enum { nonblocking };
+pub const Option = enum {
+    /// If true, the operation does not block.
+    nonblocking
+};
+
+/// Options for send operations.
 pub const Options = std.enums.EnumFieldStruct(Option, bool, false);

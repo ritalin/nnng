@@ -1,8 +1,20 @@
+//! Message payload.
+//!
+//! Constructed via the embedded std.Io.Writer.
+//! Data is appended using standard write methods, and must be
+//! finalized with flush() to commit the payload size.
+//!
+//! The message may be reused by resetting the writer and writing again.
+//!
+//! Ownership is transferred to the protocol when sent.
+
 const std = @import("std");
 const root = @import("../root.zig");
 const c = @import("c");
 
 raw_msg: *c.nng_msg,
+/// Writer used to build the message payload.
+/// Call flush() to finalize the message.
 writer: std.Io.Writer,
 
 const vtbl: std.Io.Writer.VTable = .{
@@ -15,10 +27,12 @@ const vtbl: std.Io.Writer.VTable = .{
 const Self = @This();
 const ALIGNED_BUF_SIZE: usize = 1024;
 
+/// Creates a message with a default capacity (1 KiB).
 pub fn create() !Self {
     return Self.with_capacity(ALIGNED_BUF_SIZE);
 }
 
+/// Creates a message with the given capacity.
 pub fn with_capacity(cap: usize) root.MessageAllocError!Self {
     var raw_msg: ?*c.nng_msg = null;
     const err = c.nng_msg_alloc(&raw_msg, cap);
@@ -39,6 +53,7 @@ pub fn with_capacity(cap: usize) root.MessageAllocError!Self {
     };
 }
 
+/// Internal. Initializes from a received nng_msg.
 pub fn from_raw(raw_msg: *c.nng_msg) Self {
     const p: [*c]u8 = @ptrCast(c.nng_msg_body(raw_msg));
     const end = c.nng_msg_len(raw_msg);
@@ -54,15 +69,21 @@ pub fn from_raw(raw_msg: *c.nng_msg) Self {
     };
 }
 
+/// Releases message resources.
+///
+/// Must be called by the user when the message is no longer needed.
+/// The library does not manage message lifetime.
 pub fn deinit(self: *Self) void {
     c.nng_msg_free(self.raw_msg);
     self.* = undefined;
 }
 
+/// Returns the comitted message size.
 pub fn len(self: Self) usize {
     return c.nng_msg_len(self.raw_msg);
 }
 
+/// Returns the message payload.
 pub fn bytes(self: Self) []const u8 {
     const p: [*c]u8 = @ptrCast(c.nng_msg_body(self.raw_msg));
 

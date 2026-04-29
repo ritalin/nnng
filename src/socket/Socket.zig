@@ -27,18 +27,27 @@ pub fn close(self: Socket) void {
     }
 }
 
+/// Builder for protocol instances using Pipe.Sync.
+///
+/// Created via open(). Configure as needed, then finalize with
+/// as_listener() or as_dialer().
+///
+/// Call parallel() to switch to Pipe.Parallel.
 pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) type) type {
     return struct {
         socket: Socket,
 
         const Builder = @This();
 
+        /// Internal. Called by open().
         pub fn init(socket: Socket) Builder {
             return .{
                 .socket = socket,
             };
         }
 
+        /// Switch to Pipe.Parallel builder.
+        /// `count` specifies the number of parallel pipe instances.
         pub fn parallel(self: Builder, count: usize) ParallelBuilder(Protocol) {
             return .{
                 .socket = self.socket,
@@ -46,6 +55,7 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
             };
         }
 
+        /// Build as a listener.
         pub fn as_listener(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Sync) {
             const listener = try Transport.Listener.create(self.socket, url);
             const pipes = Pipe.Sync.create(self.socket);
@@ -53,6 +63,7 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
             return Protocol(Transport.Listener, Pipe.Sync).init(listener, pipes);
         }
 
+        /// Build as a dialer.
         pub fn as_dialer(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Sync) {
             const dialer = try Transport.Dialer.create(self.socket, url);
             const pipes = Pipe.Sync.create(self.socket);
@@ -62,6 +73,10 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
     };
 }
 
+/// Builder for protocol instances using Pipe.Parallel.
+///
+/// Created via SyncBuilder.parallel().
+/// Finalize with as_listener() or as_dialer().
 pub fn ParallelBuilder(comptime Protocol: *const fn (comptime type, comptime type) type) type {
     return struct {
         socket: Socket,
@@ -69,6 +84,7 @@ pub fn ParallelBuilder(comptime Protocol: *const fn (comptime type, comptime typ
 
         const Builder = @This();
 
+        /// Build as a listener.
         pub fn as_listener(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Parallel) {
             const listener = try Transport.Listener.create(self.socket, url);
             const pipes = try Pipe.Parallel.create(self.socket, self.count);
@@ -76,6 +92,7 @@ pub fn ParallelBuilder(comptime Protocol: *const fn (comptime type, comptime typ
             return Protocol(Transport.Listener, Pipe.Parallel).init(listener, pipes);
         }
 
+        /// Build as a dialer.
         pub fn as_dialer(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Parallel) {
             const dialer = try Transport.Dialer.create(self.socket, url);
             const pipes = try Pipe.Parallel.create(self.socket, self.count);

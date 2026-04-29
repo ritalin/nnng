@@ -12,6 +12,7 @@ pub const Listener = struct {
 
     const Self = @This();
 
+    /// Internal. Called by protocol open().
     pub fn create(socket: Socket, url: []const u8) root.NewTransportError!Self {
         const urlz = try socket.context.allocator.dupeSentinel(u8, url, 0);
         errdefer socket.context.allocator.free(urlz);
@@ -29,6 +30,7 @@ pub const Listener = struct {
         };
     }
 
+    /// Internal. Called by protocol close().
     pub fn deinit(self: Self) void {
         const err = c.nng_listener_close(self.raw_listener);
         if (err != 0) {
@@ -37,6 +39,7 @@ pub const Listener = struct {
         self.socket.context.allocator.free(self.url);
     }
 
+    /// Starts listening for incoming connections.
     pub fn start(self: Self) root.StartTransportError!void {
         const err = c.nng_listener_start(self.raw_listener, c.NNG_FLAG_NONBLOCK);
         if (err != 0) {

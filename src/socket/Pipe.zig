@@ -1,3 +1,8 @@
+//! Pipe implementations.
+//!
+//! - Pipe.Sync
+//! - Pipe.Parallel
+
 const std = @import("std");
 const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
@@ -11,28 +16,36 @@ const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
 const OpenAioPipeError = root.OpenAioPipeError;
 
+/// Synchronous message handling.
+/// Processes messages in a single flow.
 pub const Sync = struct {
     socket: Socket,
 
     const Self = @This();
 
+    /// Internal. Called by protocol open().
     pub fn create(socket: Socket) Self {
         return .{
             .socket = socket,
         };
     }
 
+    /// Internal. Called by protocol close().
     pub fn deinit(_: *Self) void {}
 
+    /// Returns an iterator over the underlying pipes.
+    /// This is the primary way to access pipe instances.
     pub fn iter(self: Self) PipeIter {
         return .{
             .item = .{ .socket = self.socket },
         };
     }
 
-    pub const Item = struct {
+    /// Pipe instance
+    const Item = struct {
         socket: Socket,
 
+        /// Returns a sender for this pipe.
         pub fn sender(self: *const @This()) Sender {
             return .{
                 .owner = self,
@@ -40,6 +53,7 @@ pub const Sync = struct {
             };
         }
 
+        /// Returns a receiver for this pipe.
         pub fn receiver(self: *const @This()) Receiver {
             return .{
                 .owner = self,
@@ -48,10 +62,14 @@ pub const Sync = struct {
         }
     };
 
+    /// Iterates over pipe instances.
     pub const PipeIter = struct {
         index: usize = 0,
         item: Item,
 
+        /// Returns the next pipe item, or null when exhausted.
+        ///
+        /// Yields a single item.
         pub fn next(self: *@This()) ?Item {
             if (self.index > 0) return null;
 
@@ -94,12 +112,15 @@ pub const Sync = struct {
     };
 };
 
+/// Parallel message handling.
+/// Uses multiple contexts for concurrent processing.
 pub const Parallel = struct {
     socket: Socket,
     items: []Item,
 
     const Self = @This();
 
+    /// Internal. Called by protocol open().
     pub fn create(socket: Socket, count: usize) !Self {
         const items = try socket.context.allocator.alloc(Item, count);
         for (items) |*item| {
@@ -112,6 +133,7 @@ pub const Parallel = struct {
         };
     }
 
+    /// Internal. Called by protocol close().
     pub fn deinit(self: *Self) void {
         for (self.items) |*item| {
             item.deinit();
@@ -119,16 +141,21 @@ pub const Parallel = struct {
         self.socket.context.allocator.free(self.items);
     }
 
+    /// Returns an iterator over the underlying pipes.
     pub fn iter(self: Self) PipeIter {
         return .{
             .items = self.items,
         };
     }
 
+    /// Iterates over pipe instances.
     pub const PipeIter = struct {
         index: usize = 0,
         items: []Item,
 
+        /// Returns the next pipe item, or null when exhausted.
+        ///
+        /// Yields one item per configured parallel instance.
         pub fn next(self: *@This()) ?Item {
             if (self.index >= self.items.len) return null;
 
@@ -137,6 +164,7 @@ pub const Parallel = struct {
         }
     };
 
+    /// Pipe instance
     const Item = struct {
         raw_ctx: c.nng_ctx,
         raw_aio: *c.nng_aio,
@@ -175,6 +203,7 @@ pub const Parallel = struct {
             self.* = undefined;
         }
 
+        /// Returns a sender for this pipe.
         pub fn sender(self: *const @This()) Sender {
             return .{
                 .owner = self,
@@ -182,6 +211,7 @@ pub const Parallel = struct {
             };
         }
 
+        /// Returns a receiver for this pipe.
         pub fn receiver(self: *const @This()) Receiver {
             return .{
                 .owner = self,
