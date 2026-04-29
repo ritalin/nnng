@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const pkg_prefix = b.option([]const u8, "PKG_PREFIX", "pkg prefix path") orelse @panic("Need to specify pkg prefix path");
+    const pkg_prefix = b.option([]const u8, "PKG_PREFIX", "pkg prefix path") orelse "/usr/local";
 
     const c = b.addTranslateC(.{
         .target = target,
