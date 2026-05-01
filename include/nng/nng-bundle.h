@@ -22,5 +22,3 @@
 #include "nng/transport/tls/tls.h"
 #include "nng/transport/ws/websocket.h"
 // #include "nng/transport/zerotier/zerotier.h"
-
-#define nng_socket_close nng_close

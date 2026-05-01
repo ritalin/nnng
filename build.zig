@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     mod.root_module.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
+    mod.root_module.addRPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
     mod.root_module.linkSystemLibrary("nng", .{});
 
     b.installArtifact(mod);

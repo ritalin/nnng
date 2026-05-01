@@ -3,17 +3,24 @@
 
     inputs = {
         nixpkgs.url = "github:NixOS/nixpkgs";
+        flake-utils.url = "github:numtide/flake-utils";
     };
 
-    outputs = { self, nixpkgs }:
+    outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem(
+        system:
         let
-            system = builtins.currentSystem;
             pkgs = nixpkgs.legacyPackages.${system};
         in {
-            devShells.${system}.default = pkgs.mkShell {
-                buildInputs = [
-                    pkgs.nng
-                ];
+            devShells.default = pkgs.mkShell {
+              buildInputs = [
+                pkgs.nng
+                pkgs.bintools
+              ];
+              shellHook = ''
+                export PS1="nix-dev> "
+                export NNG_PREFIX=${pkgs.nng}
+              '';
             };
-        };
+        }
+    );
 }
