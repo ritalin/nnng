@@ -1,0 +1,43 @@
+name: Test nnng
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        zig-version: ["latest"]
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install zig latest
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ matrix.zig-version }}
+          use-cache: false
+      - name: Show zig version
+        run: zig version
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Show nix version
+        run: nix --version
+
+      - name: Run test
+        run: nix develop --command zig build -Dtarget=x86_64-linux-gnu --verbose test
