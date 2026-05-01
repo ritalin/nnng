@@ -5,7 +5,7 @@ Provides a composable abstraction layer with Sender/Receiver capabilities.
 ## Requirements
 
 Zig 0.16.0 or later
-nng 1.10 (preinstalled)
+nng 1.11 (preinstalled)
 
 Tested on macOS 15.7.4.
 
@@ -57,11 +57,11 @@ See the echo server and client examples:
 
 `nnng` expects `nng` to be installed on your system.
 
-By default, it looks under `/usr/local`.  
+By default, it looks `NNG_PREFIX` env variable.  
 If installed elsewhere, specify the prefix:
 
 ```sh
-zig build -DPKG_PREFIX=/path/to/nng
+zig build -DNNG_PREFIX=/path/to/nng
 ```
 
 ## Credits
