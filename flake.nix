@@ -13,12 +13,14 @@
         in {
             devShells.default = pkgs.mkShell {
               buildInputs = [
-                pkgs.nng
+                pkgs.zsh
+                pkgs.starship
                 pkgs.bintools
+                pkgs.nng
               ];
               shellHook = ''
-                export PS1="nix-dev> "
                 export NNG_PREFIX=${pkgs.nng}
+                eval "$(starship init bash)"
               '';
             };
         }
