@@ -15,7 +15,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
         return errors.open_error(err);
     }
 
-    return Socket.SyncBuilder(Rep).init(Socket.init(ctx, raw_socket));
+    return Socket.SyncBuilder(Rep).init(Socket.init(ctx, raw_socket), .{ .last_msg_owner = true });
 }
 
 /// REP protocol type.

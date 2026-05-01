@@ -16,17 +16,24 @@ const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
 const OpenAioPipeError = root.OpenAioPipeError;
 
+const Feature = enum {
+    last_msg_owner,
+};
+pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
+
 /// Synchronous message handling.
 /// Processes messages in a single flow.
 pub const Sync = struct {
     socket: Socket,
+    features: Features,
 
     const Self = @This();
 
     /// Internal. Called by protocol open().
-    pub fn create(socket: Socket) Self {
+    pub fn create(socket: Socket, features: Features) Self {
         return .{
             .socket = socket,
+            .features = features,
         };
     }
 
@@ -37,13 +44,17 @@ pub const Sync = struct {
     /// This is the primary way to access pipe instances.
     pub fn iter(self: Self) PipeIter {
         return .{
-            .item = .{ .socket = self.socket },
+            .item = .{
+                .socket = self.socket,
+                .features = self.features,
+            },
         };
     }
 
     /// Pipe instance
     const Item = struct {
         socket: Socket,
+        features: Features,
 
         /// Returns a sender for this pipe.
         pub fn sender(self: *const @This()) Sender {
@@ -121,10 +132,10 @@ pub const Parallel = struct {
     const Self = @This();
 
     /// Internal. Called by protocol open().
-    pub fn create(socket: Socket, count: usize) !Self {
+    pub fn create(socket: Socket, count: usize, features: Features) !Self {
         const items = try socket.context.allocator.alloc(Item, count);
         for (items) |*item| {
-            item.* = try Item.create(socket);
+            item.* = try Item.create(socket, features);
         }
 
         return .{
@@ -168,10 +179,11 @@ pub const Parallel = struct {
     const Item = struct {
         raw_ctx: c.nng_ctx,
         raw_aio: *c.nng_aio,
+        features: Features,
 
         const State = enum { send, receive };
 
-        pub fn create(socket: Socket) OpenAioPipeError!@This() {
+        pub fn create(socket: Socket, features: Features) OpenAioPipeError!@This() {
             const raw_ctx = open: {
                 var raw_ctx: c.nng_ctx = undefined;
                 const err = c.nng_ctx_open(&raw_ctx, socket.raw_socket);
@@ -194,6 +206,7 @@ pub const Parallel = struct {
             return .{
                 .raw_ctx = raw_ctx,
                 .raw_aio = raw_aio.?,
+                .features = features,
             };
         }
 
