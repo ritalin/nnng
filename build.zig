@@ -4,14 +4,18 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const pkg_prefix = b.option([]const u8, "PKG_PREFIX", "pkg prefix path") orelse "/usr/local";
+    const pkg_prefix =
+        b.option([]const u8, "NNG_PREFIX", "pkg prefix path")
+        orelse b.graph.environ_map.get("NNG_PREFIX").?
+    ;
 
     const c = b.addTranslateC(.{
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include/nng/nng.h" }) },
+        .root_source_file = b.path("include/nng/nng-bundle.h"),
         .link_libc = true,
     });
+    c.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include" }) });
 
     const mod = b.addLibrary(.{
         .name = "nnng",
