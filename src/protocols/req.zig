@@ -19,7 +19,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
         return errors.open_error(err);
     }
 
-    return Socket.SyncBuilder(Req).init(Socket.init(ctx, raw_socket));
+    return Socket.SyncBuilder(Req).init(Socket.init(ctx, raw_socket), .{});
 }
 
 /// REQ protocol type.
@@ -77,6 +77,9 @@ pub const tests = struct {
         };
         try socket.transport.start();
         defer socket.close();
+
+        var iter = socket.pipe.iter();
+        try std.testing.expectEqual(false, iter.next().?.features.last_msg_owner);
     }
 
     test "new REP socket" {
@@ -92,6 +95,9 @@ pub const tests = struct {
         };
         try socket.transport.start();
         defer socket.close();
+
+        var iter = socket.pipe.iter();
+        try std.testing.expectEqual(true, iter.next().?.features.last_msg_owner);
     }
 
     test "REQ/REP communication" {
