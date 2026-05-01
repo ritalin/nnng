@@ -15,7 +15,7 @@ const Self = @This() ;
 /// Initialize the context.
 /// Expects `io` and `allocator` from the application entry point.
 pub fn init(io: std.Io, allocator: std.mem.Allocator) Self {
-    _ = c.nng_init(null);
+    // _ = c.nng_init(null);
 
     return .{
         .io = io,
