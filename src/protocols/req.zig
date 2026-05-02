@@ -19,7 +19,13 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
         return errors.open_error(err);
     }
 
-    return Socket.SyncBuilder(Req).init(Socket.init(ctx, raw_socket), .{});
+    const socket = Socket.init(ctx, raw_socket);
+    const features: Pipe.Features = .{
+        .receivable = true,
+        .last_msg_owner = true,
+    };
+
+    return Socket.SyncBuilder(Req).init(socket, features);
 }
 
 /// REQ protocol type.
@@ -77,12 +83,9 @@ pub const tests = struct {
         };
         try socket.transport.start();
         defer socket.close();
-
-        var iter = socket.pipe.iter();
-        try std.testing.expectEqual(false, iter.next().?.features.last_msg_owner);
     }
 
-    test "new REP socket" {
+    test "REQ socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
@@ -90,14 +93,24 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket = socket: {
-            var b = try rep.open(ctx);
-            break:socket try b.as_listener(url);
+            var b = try open(ctx);
+            break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
         defer socket.close();
 
         var iter = socket.pipe.iter();
-        try std.testing.expectEqual(true, iter.next().?.features.last_msg_owner);
+        pipe: {
+            const pipe = iter.next();
+            try std.testing.expect(pipe != null);
+            try std.testing.expectEqual(Pipe.Features{.receivable = true, .last_msg_owner = true }, pipe.?.features);
+            break:pipe;
+        }
+        pipe: {
+            const pipe = iter.next();
+            try std.testing.expect(pipe == null);
+            break:pipe;
+        }
     }
 
     test "REQ/REP communication" {
