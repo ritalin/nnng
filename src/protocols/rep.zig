@@ -19,7 +19,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
 
     const socket = Socket.init(ctx, raw_socket);
     const features: Pipe.Features = .{
-        .receivable = true,
+        .receive_first = true,
     };
 
     return Socket.SyncBuilder(Rep).init(socket, features);
@@ -95,7 +95,7 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receivable = true, .last_msg_owner = false }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
             break:pipe;
         }
         pipe: {
@@ -123,19 +123,19 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receivable = true, .last_msg_owner = false }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
             break:pipe;
         }
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receivable = true, .last_msg_owner = false }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
             break:pipe;
         }
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receivable = true, .last_msg_owner = false }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
             break:pipe;
         }
         pipe: {

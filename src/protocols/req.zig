@@ -21,7 +21,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
 
     const socket = Socket.init(ctx, raw_socket);
     const features: Pipe.Features = .{
-        .receivable = true,
+        .send_first = true,
         .last_msg_owner = true,
     };
 
@@ -103,7 +103,7 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqual(Pipe.Features{.receivable = true, .last_msg_owner = true }, pipe.?.features);
+            try std.testing.expectEqual(Pipe.Features{.send_first = true, .last_msg_owner = true }, pipe.?.features);
             break:pipe;
         }
         pipe: {
@@ -131,13 +131,13 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqual(Pipe.Features{.receivable = true, .last_msg_owner = true }, pipe.?.features);
+            try std.testing.expectEqual(Pipe.Features{.send_first = true, .last_msg_owner = true }, pipe.?.features);
             break:pipe;
         }
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqual(Pipe.Features{.receivable = true, .last_msg_owner = true }, pipe.?.features);
+            try std.testing.expectEqual(Pipe.Features{.send_first = true, .last_msg_owner = true }, pipe.?.features);
             break:pipe;
         }
         pipe: {
