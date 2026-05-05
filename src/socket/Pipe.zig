@@ -18,7 +18,8 @@ const ReceiveError = root.ReceiveError;
 const OpenAioPipeError = root.OpenAioPipeError;
 
 const Feature = enum {
-    receivable,
+    send_first,
+    receive_first,
     last_msg_owner,
 };
 pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
@@ -26,7 +27,7 @@ pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
 /// Synchronous message handling.
 /// Processes messages in a single flow.
 pub const Sync = struct {
-    socket: Socket,
+    pipe: Item,
     features: Features,
 
     const Self = @This();
@@ -34,7 +35,11 @@ pub const Sync = struct {
     /// Internal. Called by protocol open().
     pub fn create(socket: Socket, features: Features) Self {
         return .{
-            .socket = socket,
+            .pipe = .{
+                .id = impl.PipeIdCounter.next(),
+                .socket = socket,
+                .features = features,
+            },
             .features = features,
         };
     }
@@ -44,17 +49,15 @@ pub const Sync = struct {
 
     /// Returns an iterator over the underlying pipes.
     /// This is the primary way to access pipe instances.
-    pub fn iter(self: Self) PipeIter {
+    pub fn iter(self: *Self) PipeIter {
         return .{
-            .item = .{
-                .socket = self.socket,
-                .features = self.features,
-            },
+            .item = &self.pipe,
         };
     }
 
     /// Pipe instance
     pub const Item = struct {
+        id: u64,
         socket: Socket,
         features: Features,
 
@@ -78,7 +81,7 @@ pub const Sync = struct {
     /// Iterates over pipe instances.
     pub const PipeIter = struct {
         index: usize = 0,
-        item: Item,
+        item: *Item,
 
         /// Returns the next pipe item, or null when exhausted.
         ///
@@ -87,7 +90,7 @@ pub const Sync = struct {
             if (self.index > 0) return null;
 
             defer self.index += 1;
-            return &self.item;
+            return self.item;
         }
     };
 };
@@ -146,6 +149,7 @@ pub const Parallel = struct {
 
     /// Pipe instance
     pub const Item = struct {
+        id: u64,
         raw_ctx: c.nng_ctx,
         raw_aio: *c.nng_aio,
         features: Features,
@@ -173,6 +177,7 @@ pub const Parallel = struct {
             };
 
             return .{
+                .id = impl.PipeIdCounter.next(),
                 .raw_ctx = raw_ctx,
                 .raw_aio = raw_aio.?,
                 .features = features,
@@ -199,6 +204,10 @@ pub const Parallel = struct {
                 .owner = self,
                 .on_drain = impl.ParallelReceiverImpl.drain_message,
             };
+        }
+
+        pub fn cancel(self: *const @This()) void {
+            c.nng_aio_cancel(self.raw_aio);
         }
     };
 };
