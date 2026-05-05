@@ -16,6 +16,13 @@ const Self = @This();
 const Receiver = Self;
 
 /// Receives a message.
+///
+/// This is a single-consumer operation.
+/// drain() must not be called concurrently or recursively.
+///
+/// External synchronization does not make multiple calls safe.
+/// The function assumes single-consumer semantics.
+///
 pub fn drain(self: *const Self, options: Options) ReceiveError!Message {
     return (self.on_drain)(self, options);
 }

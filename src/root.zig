@@ -11,6 +11,9 @@ pub const Message = @import("./message/Message.zig");
 pub const req = @import("./protocols/req.zig");
 pub const rep = @import("./protocols/rep.zig");
 
+// extras
+pub const ReceivePoller = @import("./extra/ReceivePoller.zig");
+
 pub const InitializeError = error { AlreadyInited };
 pub const FeatureError = error { NotSupported };
 pub const OpenError = std.mem.Allocator.Error || FeatureError;
@@ -18,22 +21,22 @@ pub const CloseError = error { AlreadyClosed };
 pub const ConnectionError = error { NotOpened, Refused };
 pub const TransportUrlError = error { InvalidUrl };
 pub const NewTransportError = TransportUrlError || CloseError || std.mem.Allocator.Error;
-pub const InvalidError = error { InvalidValue };
+pub const InvalidError = error { InvalidValue, InvalidState };
 
 pub const StartTransportError = (
     TransportUrlError || CloseError || ConnectionError || InvalidError ||
-    std.mem.Allocator.Error || error { ProtocolError, AlreadyStarted, FailureAuth, Unreachable }
+    std.mem.Allocator.Error || error { ProtocolError, AlreadyStarted, FailureAuth, Unreachable, AddressInUse }
 );
 
 pub const MessageAllocError = std.mem.Allocator.Error;
 
 pub const SendError = (
-    error { Blocked, TooLargeSize, Unreachable, Timeout } ||
+    error { WouldBlock, TooLargeSize, Timeout, Canceled } ||
     FeatureError || CloseError || InvalidError || std.mem.Allocator.Error
 );
 
 pub const ReceiveError = (
-    error { Blocked, NotSupported, Unreachable, Timeout } ||
+    error { WouldBlock, NotSupported, Timeout, Canceled } ||
     CloseError || InvalidError || std.mem.Allocator.Error
 );
 
