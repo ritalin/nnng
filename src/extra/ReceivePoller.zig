@@ -111,7 +111,7 @@ pub fn mark_skip() !void {
 
 pub fn cancel(self: *Self, id: u64) void {
     if (self.poller_pipes.get(id)) |pipe| {
-        std.log.debug("Poller:cancel/id: {}\n", .{id});
+        std.log.debug("Poller:cancel/id: {}", .{id});
         pipe.cancel();
     }
 }
@@ -145,7 +145,7 @@ fn attachInternal(self: *Self, id: u64, channel: poller_impl.PollerPipe) !void {
         return;
     }
 
-    std.log.debug("Poller:attach/id: {}\n", .{id});
+    std.log.debug("Poller:attach/id: {}", .{id});
 
     try self.poller_pipes.put(id, channel);
 
