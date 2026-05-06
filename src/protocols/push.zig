@@ -71,7 +71,7 @@ pub const tests = struct {
     test "new PUSH socket" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -86,7 +86,7 @@ pub const tests = struct {
     test "PUSH socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -114,7 +114,7 @@ pub const tests = struct {
     test "PUSH/PULL communication" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);

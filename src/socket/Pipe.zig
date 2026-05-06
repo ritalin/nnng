@@ -33,19 +33,17 @@ pub const Sync = struct {
     const Self = @This();
 
     /// Internal. Called by protocol open().
-    pub fn create(socket: Socket, features: Features) Self {
+    pub fn create(socket: Socket, features: Features) !Self {
         return .{
-            .pipe = .{
-                .id = impl.PipeIdCounter.next(),
-                .socket = socket,
-                .features = features,
-            },
+            .pipe = try Item.create(socket, features),
             .features = features,
         };
     }
 
     /// Internal. Called by protocol close().
-    pub fn deinit(_: *Self) void {}
+    pub fn deinit(self: *Self) void {
+        self.pipe.deinit();
+    }
 
     /// Returns an iterator over the underlying pipes.
     /// This is the primary way to access pipe instances.
@@ -59,7 +57,29 @@ pub const Sync = struct {
     pub const Item = struct {
         id: u64,
         socket: Socket,
+        raw_aio: *c.nng_aio,
         features: Features,
+
+        // Internal
+        pub fn create(socket: Socket, features: Features) OpenAioPipeError!Item {
+            var raw_aio: ?*c.nng_aio = null;
+            const err = c.nng_aio_alloc(&raw_aio, null, null);
+            if (err != 0) {
+                return errors.open_aio_pipe_error(@intCast(err));
+            }
+
+            return .{
+                .id = impl.PipeIdCounter.next(),
+                .socket = socket,
+                .raw_aio = raw_aio.?,
+                .features = features,
+            };
+        }
+
+        // Internal
+        pub fn deinit(self: *@This()) void {
+            c.nng_aio_free(self.raw_aio);
+        }
 
         /// Returns a sender for this pipe.
         pub fn sender(self: *const @This()) Sender {
@@ -75,6 +95,11 @@ pub const Sync = struct {
                 .owner = self,
                 .on_drain = impl.SyncReceiverImpl.drain_message,
             };
+        }
+
+        // Cancel current session
+        pub fn cancel(self: *const @This()) void {
+            _ = self;
         }
     };
 
@@ -206,6 +231,7 @@ pub const Parallel = struct {
             };
         }
 
+        // Cancel current session
         pub fn cancel(self: *const @This()) void {
             c.nng_aio_cancel(self.raw_aio);
         }

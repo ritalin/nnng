@@ -61,7 +61,7 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
         /// Build as a listener.
         pub fn as_listener(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Listener, Pipe.Sync) {
             const listener = try Transport.Listener.create(self.socket, url);
-            const pipes = Pipe.Sync.create(self.socket, self.features);
+            const pipes = try Pipe.Sync.create(self.socket, self.features);
 
             return Protocol(Transport.Listener, Pipe.Sync).init(listener, pipes);
         }
@@ -69,7 +69,7 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
         /// Build as a dialer.
         pub fn as_dialer(self: *const Builder, url: []const u8) anyerror!Protocol(Transport.Dialer, Pipe.Sync) {
             const dialer = try Transport.Dialer.create(self.socket, url);
-            const pipes = Pipe.Sync.create(self.socket, self.features);
+            const pipes = try Pipe.Sync.create(self.socket, self.features);
 
             return Protocol(Transport.Dialer, Pipe.Sync).init(dialer, pipes);
         }
