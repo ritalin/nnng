@@ -10,6 +10,8 @@ pub const Message = @import("./message/Message.zig");
 
 pub const req = @import("./protocols/req.zig");
 pub const rep = @import("./protocols/rep.zig");
+pub const push = @import("./protocols/push.zig");
+pub const pull = @import("./protocols/pull.zig");
 
 // extras
 pub const ReceivePoller = @import("./extra/ReceivePoller.zig");
