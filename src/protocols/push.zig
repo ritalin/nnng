@@ -111,4 +111,52 @@ pub const tests = struct {
         }
     }
 
+    test "PUSH/PULL communication" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        defer std.testing.allocator.free(url);
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open PUSH socket
+        var push_socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try push_socket.transport.start();
+        defer push_socket.close();
+
+        // Open PULL socket
+        var pull_socket: pull.Pull(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try pull.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pull_socket.transport.start();
+        defer pull_socket.close();
+
+        // get pipe
+        var push_pipe = iter: {
+            var iter = push_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+        var pull_pipe = iter: {
+            var iter = pull_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+
+        var msg = try Message.create();
+        defer msg.deinit();
+
+        // PUSH (send)
+        const v0 = "Hello";
+        try msg.writer.writeAll(v0);
+        try msg.writer.flush(); // Need to sync written length
+        try push_pipe.sender().submit(msg, .{});
+
+        // REP (recv)
+        msg = try pull_pipe.receiver().drain(.{});
+
+        try std.testing.expectEqualStrings(v0, msg.bytes());
+    }
 };
