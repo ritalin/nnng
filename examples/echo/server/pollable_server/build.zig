@@ -15,9 +15,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-
     const exe = b.addExecutable(.{
-        .name = "echo-server-blocking",
+        .name = "echo-server-poolable",
         .root_module = b.addModule("server", .{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

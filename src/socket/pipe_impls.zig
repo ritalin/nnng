@@ -34,7 +34,7 @@ pub const SyncReceiverImpl = struct {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
         const flags = std.enums.EnumSet(Receiver.Option).init(options);
-        std.log.debug("Start receiving:Sync/id: {}, flags: {}\n", .{pipe.id, options});
+        std.log.debug("Start receiving:Sync/id: {}, flags: {}", .{pipe.id, options});
 
         var raw_msg: ?*c.nng_msg = null;
         const err = c.nng_recvmsg(pipe.socket.raw_socket, &raw_msg, flags.bits.mask);
@@ -43,7 +43,7 @@ pub const SyncReceiverImpl = struct {
         }
 
         const msg = Message.from_raw(raw_msg.?);
-        std.log.debug("Received:Sync/id: {}, len(edit): {}, len(commit): {}\n", .{pipe.id, msg.writer.end, msg.len()});
+        std.log.debug("Received:Sync/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});
 
         return msg;
     }
@@ -73,7 +73,7 @@ pub const ParallelReceiverImpl = struct {
         const pipe: *const root.Pipe.Parallel.Item = @ptrCast(@alignCast(receiver.owner));
 
         c.nng_ctx_recv(pipe.raw_ctx, pipe.raw_aio);
-        std.log.debug("Start receiving:Parallel/id: {}, flags: {}\n", .{pipe.id, options});
+        std.log.debug("Start receiving:Parallel/id: {}, flags: {}", .{pipe.id, options});
 
         if (!options.nonblocking) {
             c.nng_aio_wait(pipe.raw_aio);
@@ -91,7 +91,7 @@ pub const ParallelReceiverImpl = struct {
         }
 
         const msg = Message.from_raw(raw_msg.?);
-        std.log.debug("Received:Parallel/id: {}, len(edit): {}, len(commit): {}\n", .{pipe.id, msg.writer.end, msg.len()});
+        std.log.debug("Received:Parallel/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});
 
         return msg;
     }
