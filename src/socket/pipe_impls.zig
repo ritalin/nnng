@@ -24,7 +24,7 @@ pub const SyncSenderImpl = struct {
         c.nng_aio_set_msg(pipe.raw_aio, msg.raw_msg);
         c.nng_send_aio(pipe.socket.raw_socket, pipe.raw_aio);
 
-        if (!options.nonblocking) {
+        if (!options.flags.nonblocking) {
             c.nng_aio_wait(pipe.raw_aio);
         }
 
@@ -43,7 +43,7 @@ pub const SyncReceiverImpl = struct {
 
         c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
 
-        if (!options.nonblocking) {
+        if (!options.flags.nonblocking) {
             c.nng_aio_wait(pipe.raw_aio);
         }
 
@@ -58,7 +58,7 @@ pub const SyncReceiverImpl = struct {
             return error.WouldBlock;
         }
 
-        const msg = Message.from_raw(raw_msg.?);
+        const msg = Message.fromRaw(raw_msg.?);
         std.log.debug("Received:Sync/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});
 
         return msg;
@@ -74,7 +74,7 @@ pub const ParallelSenderImpl = struct {
         c.nng_aio_set_msg(pipe.raw_aio, msg.raw_msg);
         c.nng_ctx_send(pipe.raw_ctx, pipe.raw_aio);
 
-        if (!options.nonblocking) {
+        if (!options.flags.nonblocking) {
             c.nng_aio_wait(pipe.raw_aio);
         }
         const err = c.nng_aio_result(pipe.raw_aio);
@@ -91,7 +91,7 @@ pub const ParallelReceiverImpl = struct {
         c.nng_ctx_recv(pipe.raw_ctx, pipe.raw_aio);
         std.log.debug("Start receiving:Parallel/id: {}, flags: {}", .{pipe.id, options});
 
-        if (!options.nonblocking) {
+        if (!options.flags.nonblocking) {
             c.nng_aio_wait(pipe.raw_aio);
         }
 
@@ -106,7 +106,7 @@ pub const ParallelReceiverImpl = struct {
             return error.WouldBlock;
         }
 
-        const msg = Message.from_raw(raw_msg.?);
+        const msg = Message.fromRaw(raw_msg.?);
         std.log.debug("Received:Parallel/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});
 
         return msg;

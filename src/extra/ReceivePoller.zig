@@ -123,22 +123,6 @@ pub fn terminate(self: *Self) void {
     }
 }
 
-pub fn attach(poller: *Self, pipe: *Pipe.Parallel) !void {
-    var iter = pipe.iter();
-    while (iter.next()) |p| {
-        const channel: poller_impl.PollerPipe = .{
-            .owner = p,
-            .vtable = .{
-                .on_wait_complete = poller_impl.PollerPipeImpl.Parallel.wait_complete,
-                .on_cancel = poller_impl.PollerPipeImpl.Parallel.cancel_session,
-            },
-            .features = p.features,
-        };
-
-        try poller.attachInternal(p.id, channel);
-    }
-}
-
 fn attachInternal(self: *Self, id: u64, channel: poller_impl.PollerPipe) !void {
     if (self.ready_set.contains(id) or self.in_fight_set.contains(id)) {
         std.log.warn("Poller:already attached/id: {}", .{id});
@@ -167,6 +151,42 @@ fn doReceive(poller: *Poller, id: u64, pipe: poller_impl.PollerPipe, channel: *R
     };
 }
 
+pub const Sync = struct {
+    pub fn attach(poller: *Poller, pipe: *Pipe.Sync) !void {
+        var iter = pipe.iter();
+        while (iter.next()) |p| {
+            const channel: poller_impl.PollerPipe = .{
+                .owner = p,
+                .vtable = .{
+                    .on_wait_complete = poller_impl.PollerPipeImpl.Sync.waitComplete,
+                    .on_cancel = poller_impl.PollerPipeImpl.Sync.cancelSession,
+                },
+                .features = p.features,
+            };
+
+            try poller.attachInternal(p.id, channel);
+        }
+    }
+};
+
+pub const Parallel = struct {
+    pub fn attach(poller: *Poller, pipe: *Pipe.Parallel) !void {
+        var iter = pipe.iter();
+        while (iter.next()) |p| {
+            const channel: poller_impl.PollerPipe = .{
+                .owner = p,
+                .vtable = .{
+                    .on_wait_complete = poller_impl.PollerPipeImpl.Parallel.waitComplete,
+                    .on_cancel = poller_impl.PollerPipeImpl.Parallel.cancelSession,
+                },
+                .features = p.features,
+            };
+
+            try poller.attachInternal(p.id, channel);
+        }
+    }
+};
+
 pub const Timeout = union {
     unlimited: void,
     msec: u64,
@@ -183,6 +203,12 @@ pub const ReadyChannel = struct {
 
     pub fn sender(self: *const ReadyChannel) Sender {
         switch (self.impl) {
+            .sync => |*impl| {
+                return .{
+                    .owner = impl,
+                    .on_submit = self.vtable.on_submit,
+                };
+            },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
@@ -194,6 +220,12 @@ pub const ReadyChannel = struct {
 
     pub fn receiver(self: *const ReadyChannel) Receiver {
         switch (self.impl) {
+            .sync => |*impl| {
+                return .{
+                    .owner = impl,
+                    .on_drain = self.vtable.on_drain,
+                };
+            },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
@@ -225,6 +257,30 @@ test "Poller tests" {
 pub const tests = struct {
     const test_support = @import("../supports/test.zig");
 
+    test "new receive poller with receiving sync pipe" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+        var poller = try Poller.create(ctx, 64);
+        defer poller.deinit();
+
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start();
+        defer rep_socket.close();
+
+        try Poller.Sync.attach(&poller, &rep_socket.pipe);
+        try std.testing.expectEqual(1, poller.poller_pipes.count());
+        try std.testing.expectEqual(1, poller.ready_set.count());
+        try std.testing.expectEqual(0, poller.in_fight_set.count());
+    }
+
     test "new receive poller with receiving parallel pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
@@ -243,9 +299,33 @@ pub const tests = struct {
         try rep_socket.transport.start();
         defer rep_socket.close();
 
-        try poller.attach(&rep_socket.pipe);
+        try Poller.Parallel.attach(&poller, &rep_socket.pipe);
         try std.testing.expectEqual(3, poller.poller_pipes.count());
         try std.testing.expectEqual(3, poller.ready_set.count());
+        try std.testing.expectEqual(0, poller.in_fight_set.count());
+    }
+
+    test "new receive poller with sync REQ pipe" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+        var poller = try Poller.create(ctx, 64);
+        defer poller.deinit();
+
+        // Open REQ#2 socket
+        var req_socket = socket: {
+            var b = try root.req.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket.transport.start();
+        defer req_socket.close();
+
+        try Poller.Sync.attach(&poller, &req_socket.pipe);
+        try std.testing.expectEqual(1, poller.poller_pipes.count());
+        try std.testing.expectEqual(0, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
     }
 
@@ -260,17 +340,101 @@ pub const tests = struct {
         defer poller.deinit();
 
         // Open REQ#2 socket
-        var req_socket2 = socket: {
+        var req_socket = socket: {
             var b = try root.req.open(ctx);
             break:socket try b.parallel(3).as_dialer(url);
+        };
+        try req_socket.transport.start();
+        defer req_socket.close();
+
+        try Poller.Parallel.attach(&poller, &req_socket.pipe);
+        try std.testing.expectEqual(3, poller.poller_pipes.count());
+        try std.testing.expectEqual(0, poller.ready_set.count());
+        try std.testing.expectEqual(0, poller.in_fight_set.count());
+    }
+
+    test "receive mesg from poller with sync pipe" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start();
+        defer rep_socket.close();
+
+        // Open REQ socket
+        var req_socket1 = socket: {
+            var b = try root.req.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket1.transport.start();
+        defer req_socket1.close();
+
+        // Open REQ#2 socket
+        var req_socket2 = socket: {
+            var b = try root.req.open(ctx);
+            break:socket try b.as_dialer(url);
         };
         try req_socket2.transport.start();
         defer req_socket2.close();
 
-        try poller.attach(&req_socket2.pipe);
-        try std.testing.expectEqual(3, poller.poller_pipes.count());
-        try std.testing.expectEqual(0, poller.ready_set.count());
-        try std.testing.expectEqual(0, poller.in_fight_set.count());
+        var req_pipe1 = iter: {
+            var iter = req_socket1.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+        send_req: {
+            var msg = try Message.create();
+            try msg.writer.writeAll("Foo");
+            try msg.writer.flush();
+            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            break:send_req;
+        }
+
+        // Receive with Poller
+        var poller = try Poller.create(ctx, 64);
+        defer poller.deinit();
+
+        const PollCallback = struct {
+            pub fn replyMsg(p: *Poller, results: []const Poller.WakeupResult) anyerror!void {
+                try std.testing.expectEqual(0, p.skip_set.count());
+                try std.testing.expectEqual(1, p.ready_set.count());
+                try std.testing.expectEqual(0, p.in_fight_set.count());
+
+                try std.testing.expectEqual(p.ready_set.count(), results.len);
+                reply: {
+                    for (results) |result| {
+                        const event = result.event;
+                        switch (event) {
+                            .failed => |x| return x.err,
+                            .ready => |channel| {
+                                var msg = try channel.receiver().drain(.{});
+                                try msg.writer.writeAll("Baz");
+                                try msg.writer.flush();
+                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                            }
+                        }
+                    }
+                    break:reply;
+                }
+            }
+        };
+
+        try Poller.Sync.attach(&poller, &rep_socket.pipe);
+        _ = try poller.poll(PollCallback.replyMsg);
+
+        receive_msg: {
+            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("FooBaz", msg.bytes());
+            break:receive_msg;
+        }
     }
 
     test "receive mesg from poller with parallel pipe" {
@@ -319,7 +483,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .nonblocking = true });
+            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
             break:send_req;
         }
 
@@ -327,7 +491,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try req_pipe2.sender().submit(msg, .{ .nonblocking = true });
+            try req_pipe2.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
             break:send_req;
         }
 
@@ -361,7 +525,7 @@ pub const tests = struct {
                                 var msg = try channel.receiver().drain(.{});
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .nonblocking = true });
+                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
                             }
                         }
                     }
@@ -374,7 +538,7 @@ pub const tests = struct {
         var poller = try Poller.create(ctx, 64);
         defer poller.deinit();
 
-        try poller.attach(&rep_socket.pipe);
+        try Poller.Parallel.attach(&poller, &rep_socket.pipe);
 
         var accept: usize = 0;
         while (accept < 2) {
@@ -382,13 +546,13 @@ pub const tests = struct {
         }
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .nonblocking = false });
+            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
         }
         receive_msg: {
-            var msg = try req_pipe2.receiver().drain(.{ .nonblocking = false });
+            var msg = try req_pipe2.receiver().drain(.{ .flags = .{ .nonblocking = false }});
             defer msg.deinit();
             try std.testing.expectEqualStrings("BarBaz", msg.bytes());
             break:receive_msg;

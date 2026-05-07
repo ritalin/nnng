@@ -33,14 +33,77 @@ pub const PollerPipe = struct {
 };
 
 pub const PollerPipeImpl = union(enum) {
+    sync: PollerPipeImpl.Sync,
     parallel: PollerPipeImpl.Parallel,
+
+    pub const Sync = struct {
+        pipe: *const Pipe.Sync.Item,
+
+        const Self = @This();
+
+        pub fn waitComplete(ptr: *const anyopaque, channel: *ReadyChannel) ReceiveError!void {
+            const pipe: *const Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
+
+            c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
+            c.nng_aio_wait(pipe.raw_aio);
+
+            const err = c.nng_aio_result(pipe.raw_aio);
+            if (err != 0) {
+                return errors.receive_error(@intCast(err));
+            }
+
+            const self: Self = .{
+                .pipe = pipe,
+            };
+
+            channel.* = .{
+                .id = pipe.id,
+                .impl = .{ .sync = self },
+                .vtable = .{
+                    .on_submit = Self.submitMessage,
+                    .on_drain = Self.drainMessage,
+                },
+                .features = pipe.features,
+            };
+        }
+
+        pub fn cancelSession(ptr: *const anyopaque) void {
+            const pipe: *const Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
+            pipe.cancel();
+        }
+
+        pub fn submitMessage(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {
+            const self: *const Self = @ptrCast(@alignCast(sender0.owner));
+
+            const sender: Sender = .{
+                .owner = self.pipe,
+                .on_submit = sender0.on_submit,
+            };
+
+            return pipe_impl.SyncSenderImpl.submit_message(&sender, msg, options);
+        }
+
+        pub fn drainMessage(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
+            _ = options;
+
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+
+            const err = c.nng_aio_result(self.pipe.raw_aio);
+            if (err != 0) {
+                return errors.receive_error(@intCast(err));
+            }
+
+            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.raw_aio);
+            return Message.fromRaw(raw_msg.?);
+        }
+    };
 
     pub const Parallel = struct {
         pipe: *const Pipe.Parallel.Item,
 
         const Self = @This();
 
-        pub fn wait_complete(ptr: *const anyopaque, channel: *ReadyChannel) ReceiveError!void {
+        pub fn waitComplete(ptr: *const anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *const Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
             c.nng_ctx_recv(pipe.raw_ctx, pipe.raw_aio);
@@ -59,19 +122,19 @@ pub const PollerPipeImpl = union(enum) {
                 .id = pipe.id,
                 .impl = .{ .parallel = self },
                 .vtable = .{
-                    .on_submit = Self.submit_message,
-                    .on_drain = Self.drain_message,
+                    .on_submit = Self.submitMessage,
+                    .on_drain = Self.drainMessage,
                 },
                 .features = pipe.features,
             };
         }
 
-        pub fn cancel_session(ptr: *const anyopaque) void {
+        pub fn cancelSession(ptr: *const anyopaque) void {
             const pipe: *const Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
             pipe.cancel();
         }
 
-        pub fn submit_message(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {
+        pub fn submitMessage(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {
             const self: *const Self = @ptrCast(@alignCast(sender0.owner));
 
             const sender: Sender = .{
@@ -82,7 +145,7 @@ pub const PollerPipeImpl = union(enum) {
             return pipe_impl.ParallelSenderImpl.submit_message(&sender, msg, options);
         }
 
-        pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
+        pub fn drainMessage(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
             _ = options;
 
             const self: *const Self = @ptrCast(@alignCast(receiver.owner));
@@ -93,7 +156,7 @@ pub const PollerPipeImpl = union(enum) {
             }
 
             const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.raw_aio);
-            return Message.from_raw(raw_msg.?);
+            return Message.fromRaw(raw_msg.?);
         }
     };
 };
