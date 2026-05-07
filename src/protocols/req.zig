@@ -73,7 +73,7 @@ pub const tests = struct {
     test "new REQ socket" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -88,7 +88,7 @@ pub const tests = struct {
     test "REQ socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -150,7 +150,7 @@ pub const tests = struct {
     test "REQ/REP communication" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
@@ -220,7 +220,7 @@ pub const tests = struct {
     test "REQ/REP parallel communication" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);

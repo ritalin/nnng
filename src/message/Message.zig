@@ -29,11 +29,11 @@ const ALIGNED_BUF_SIZE: usize = 1024;
 
 /// Creates a message with a default capacity (1 KiB).
 pub fn create() !Self {
-    return Self.with_capacity(ALIGNED_BUF_SIZE);
+    return Self.withCapacity(ALIGNED_BUF_SIZE);
 }
 
 /// Creates a message with the given capacity.
-pub fn with_capacity(cap: usize) root.MessageAllocError!Self {
+pub fn withCapacity(cap: usize) root.MessageAllocError!Self {
     var raw_msg: ?*c.nng_msg = null;
     const err = c.nng_msg_alloc(&raw_msg, cap);
     if (err != 0) {
@@ -54,7 +54,7 @@ pub fn with_capacity(cap: usize) root.MessageAllocError!Self {
 }
 
 /// Internal. Initializes from a received nng_msg.
-pub fn from_raw(raw_msg: *c.nng_msg) Self {
+pub fn fromRaw(raw_msg: *c.nng_msg) Self {
     const p: [*c]u8 = @ptrCast(c.nng_msg_body(raw_msg));
     const end = c.nng_msg_len(raw_msg);
     const buffer = p[0..end];
@@ -141,7 +141,7 @@ test "create message (default size)" {
 }
 
 test "create message (specified size)" {
-    var msg = try Self.with_capacity(1);
+    var msg = try Self.withCapacity(1);
     defer msg.deinit();
     try std.testing.expectEqual(1, msg.len());
 }
@@ -159,7 +159,7 @@ test "write message payload" {
 
 test "write message payload with extend capacity" {
     const INITIAL_SIZE = 8;
-    var msg = try Self.with_capacity(INITIAL_SIZE);
+    var msg = try Self.withCapacity(INITIAL_SIZE);
     defer msg.deinit();
 
     const s = "Hello";

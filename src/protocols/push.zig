@@ -6,29 +6,30 @@ const c = @import("c");
 const Context = root.Context;
 const Socket = root.Socket;
 const OpenError = root.OpenError;
+const Transport = root.Transport;
 const Pipe = root.Pipe;
 
-/// Creates a REP protocol socket instance.
+/// Creates a PUSH protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push) {
     var raw_socket: c.nng_socket = undefined;
-    const err = c.nng_rep0_open(&raw_socket);
+    const err = c.nng_push0_open(&raw_socket);
     if (err != 0) {
         return errors.open_error(err);
     }
 
     const socket = Socket.init(ctx, raw_socket);
     const features: Pipe.Features = .{
-        .receive_first = true,
+        .send_first = true,
     };
 
-    return Socket.SyncBuilder(Rep).init(socket, features);
+    return Socket.SyncBuilder(Push).init(socket, features);
 }
 
-/// REP protocol type.
+/// PUSH protocol type.
 /// Transport: connection role (Listener or Dialer).
 /// Pipe: message handling model (Sync or Parallel).
-pub fn Rep(comptime TTransport: type, comptime TPipe: type) type {
+pub fn Push(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
         /// Transport role.
         transport: TTransport,
@@ -55,38 +56,43 @@ pub fn Rep(comptime TTransport: type, comptime TPipe: type) type {
     };
 }
 
-test "REP tests" {
+test "PUSH tests" {
     std.testing.refAllDecls(@This());
 }
 
 pub const tests = struct {
+    const pull = @import("./pull.zig");
     const test_support = @import("../supports/test.zig");
 
-    test "new REP socket" {
+    const Message = @import("../message/Message.zig");
+    const Sender = @import("../message/Sender.zig");
+    const Receiver = @import("../message/Receiver.zig");
+
+    test "new PUSH socket" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket = socket: {
+        var socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try open(ctx);
-            break:socket try b.as_listener(url);
+            break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
         defer socket.close();
     }
 
-    test "REP socket features for sync pipe" {
+    test "PUSH socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket = socket: {
+        var socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try open(ctx);
-            break:socket try b.as_listener(url);
+            break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
         defer socket.close();
@@ -95,7 +101,7 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .send_first = true }, pipe.?.features);
             break:pipe;
         }
         pipe: {
@@ -105,43 +111,52 @@ pub const tests = struct {
         }
     }
 
-    test "REP socket features for parallel pipe" {
+    test "PUSH/PULL communication" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket = socket: {
-            var b = try open(ctx);
-            break:socket try b.parallel(3).as_listener(url);
-        };
-        try socket.transport.start();
-        defer socket.close();
 
-        var iter = socket.pipe.iter();
-        pipe: {
-            const pipe = iter.next();
-            try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
-            break:pipe;
-        }
-        pipe: {
-            const pipe = iter.next();
-            try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
-            break:pipe;
-        }
-        pipe: {
-            const pipe = iter.next();
-            try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .receive_first = true, .last_msg_owner = false }, pipe.?.features);
-            break:pipe;
-        }
-        pipe: {
-            const pipe = iter.next();
-            try std.testing.expect(pipe == null);
-            break:pipe;
-        }
+        // Open PUSH socket
+        var push_socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try push_socket.transport.start();
+        defer push_socket.close();
+
+        // Open PULL socket
+        var pull_socket: pull.Pull(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try pull.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pull_socket.transport.start();
+        defer pull_socket.close();
+
+        // get pipe
+        var push_pipe = iter: {
+            var iter = push_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+        var pull_pipe = iter: {
+            var iter = pull_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+
+        var msg = try Message.create();
+        defer msg.deinit();
+
+        // PUSH (send)
+        const v0 = "Hello";
+        try msg.writer.writeAll(v0);
+        try msg.writer.flush(); // Need to sync written length
+        try push_pipe.sender().submit(msg, .{});
+
+        // REP (recv)
+        msg = try pull_pipe.receiver().drain(.{});
+
+        try std.testing.expectEqualStrings(v0, msg.bytes());
     }
 };

@@ -33,4 +33,9 @@ pub const Option = enum {
 };
 
 /// Options for receive operations.
-pub const Options = std.enums.EnumFieldStruct(Option, bool, false);
+pub const Options = struct {
+    flags: Flags = .{},
+
+    /// Flag set for receive operations.
+    pub const Flags = std.enums.EnumFieldStruct(Option, bool, false);
+};
