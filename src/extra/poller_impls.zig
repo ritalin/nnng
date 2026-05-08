@@ -6,7 +6,7 @@ const c = @import("c");
 
 const Sender = @import("../message/Sender.zig");
 const Receiver = @import("../message/Receiver.zig");
-const ReadyChannel = @import("./ReceivePoller.zig").ReadyChannel;
+const ReadyChannel = @import("./poller.zig").ReadyChannel;
 
 const Pipe = root.Pipe;
 const Message = root.Message;

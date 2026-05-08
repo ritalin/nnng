@@ -14,7 +14,7 @@ pub const push = @import("./protocols/push.zig");
 pub const pull = @import("./protocols/pull.zig");
 
 // extras
-pub const ReceivePoller = @import("./extra/ReceivePoller.zig");
+pub const ReceivePoller = @import("./extra/poller.zig").ReceivePoller;
 
 pub const InitializeError = error { AlreadyInited };
 pub const FeatureError = error { NotSupported };
