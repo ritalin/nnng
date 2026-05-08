@@ -3,6 +3,8 @@ const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
+const Req = @This();
+
 const Context = root.Context;
 const Socket = root.Socket;
 const Transport = root.Transport;
@@ -12,7 +14,7 @@ const CloseError = root.CloseError;
 
 /// Creates a REQ protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req.Protocol) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_req0_open(&raw_socket);
     if (err != 0) {
@@ -25,13 +27,13 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req) {
         .last_msg_owner = true,
     };
 
-    return Socket.SyncBuilder(Req).init(socket, features);
+    return Socket.SyncBuilder(Req.Protocol).init(socket, features);
 }
 
 /// REQ protocol type.
 /// Transport: connection role (Listener or Dialer).
 /// Pipe: message handling model (Sync or Parallel).
-pub fn Req(comptime TTransport: type, comptime TPipe: type) type {
+pub fn Protocol(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
         /// Transport role.
         transport: TTransport,
@@ -63,7 +65,7 @@ test "REQ tests" {
 }
 
 pub const tests = struct {
-    const rep = @import("./rep.zig");
+    const Rep = @import("./Rep.zig");
     const test_support = @import("../supports/test.zig");
 
     const Message = @import("../message/Message.zig");
@@ -78,7 +80,7 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket = socket: {
-            var b = try open(ctx);
+            var b = try Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
@@ -93,7 +95,7 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket = socket: {
-            var b = try open(ctx);
+            var b = try Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
@@ -121,7 +123,7 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket = socket: {
-            var b = try open(ctx);
+            var b = try Req.open(ctx);
             break:socket try b.parallel(2).as_dialer(url);
         };
         try socket.transport.start();
@@ -156,16 +158,16 @@ pub const tests = struct {
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
         // Open REP socket
-        var rep_socket: rep.Rep(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try rep.open(ctx);
+        var rep_socket: Rep.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Rep.open(ctx);
             break:socket try b.as_listener(url);
         };
         try rep_socket.transport.start();
         defer rep_socket.close();
 
         // Open REQ socket
-        var req_socket: Req(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var req_socket: Req.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket.transport.start();
@@ -226,24 +228,24 @@ pub const tests = struct {
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
         // Open REP socket
-        var rep_socket: rep.Rep(Transport.Listener, Pipe.Parallel) = socket: {
-            var b = try rep.open(ctx);
+        var rep_socket: Rep.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
+            var b = try Rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
         try rep_socket.transport.start();
         defer rep_socket.close();
 
         // Open REQ#1 socket
-        var req_socket1: Req(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var req_socket1: Req.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket1.transport.start();
         defer req_socket1.close();
 
         // Open REQ#2 socket
-        var req_socket2: Req(Transport.Dialer, Pipe.Parallel) = socket: {
-            var b = try open(ctx);
+        var req_socket2: Req.Protocol(Transport.Dialer, Pipe.Parallel) = socket: {
+            var b = try Req.open(ctx);
             break:socket try b.parallel(2).as_dialer(url);
         };
         try req_socket2.transport.start();

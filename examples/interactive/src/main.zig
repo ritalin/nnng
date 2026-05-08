@@ -9,8 +9,8 @@ pub fn main(init: std.process.Init) !void {
     std.log.info("Inproc url: {s}", .{url});
 
     // Open PUSH socket
-    var push_socket: nnng.push.Push(nnng.Transport.Dialer, nnng.Pipe.Sync) = socket: {
-        var b = try nnng.push.open(ctx);
+    var push_socket: nnng.Push.Protocol(nnng.Transport.Dialer, nnng.Pipe.Sync) = socket: {
+        var b = try nnng.Push.open(ctx);
         break:socket try b.as_dialer(url);
     };
     errdefer push_socket.close();
@@ -19,8 +19,8 @@ pub fn main(init: std.process.Init) !void {
     defer push_socket.close();
 
     // Open PULL socket
-    var pull_socket: nnng.pull.Pull(nnng.Transport.Listener, nnng.Pipe.Sync) = socket: {
-        var b = try nnng.pull.open(ctx);
+    var pull_socket: nnng.Pull.Protocol(nnng.Transport.Listener, nnng.Pipe.Sync) = socket: {
+        var b = try nnng.Pull.open(ctx);
         break:socket try b.as_listener(url);
     };
     errdefer pull_socket.close();

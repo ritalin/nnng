@@ -6,5 +6,7 @@
     .fingerprint = 0x170430320f55b236,
     .dependencies = .{
         .blocking_server = .{ .path = "./server/blocking_server" },
+        .pollable_server = .{ .path = "./server/pollable_server" },
+        .echo_oneshot = .{ .path = "./client/echo_oneshot" },
     },
 }
