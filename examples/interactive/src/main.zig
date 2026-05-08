@@ -1,5 +1,6 @@
 const std = @import("std");
 const nnng = @import("nnng");
+const Poller = nnng.ReceivePoller(1);
 
 pub fn main(init: std.process.Init) !void {
     const ctx = nnng.Context.init(init.io, init.gpa);
@@ -35,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
     var cb = try PollerCallback.create(ctx, pusg_pipe, std.Io.File.stdout(), std.Io.File.stdin());
     defer cb.deinit();
 
-    try nnng.ReceivePoller.Sync.attach(&cb.poller, &pull_socket.pipe);
+    try Poller.Sync.attach(&cb.poller, &pull_socket.pipe);
 
     try cb.put("Quit by typing `:q` or `:quit`\n", .{});
     try cb.watchStdin();
@@ -54,7 +55,7 @@ pub fn main(init: std.process.Init) !void {
 const PollerCallback = struct {
     context: nnng.Context,
     push_pipe: *const nnng.Pipe.Sync.Item,
-    poller: nnng.ReceivePoller,
+    poller: Poller,
     stdout: std.Io.File.Writer,
     stdin: std.Io.File.Reader,
     is_quit: bool = false,
@@ -69,7 +70,7 @@ const PollerCallback = struct {
         return .{
             .context = ctx,
             .push_pipe = push_pipe,
-            .poller = try nnng.ReceivePoller.create(ctx, 1),
+            .poller = try Poller.create(ctx),
             .stdout = stdout.writer(ctx.io, out_buffer),
             .stdin = stdin.reader(ctx.io, in_buffer),
             .reaper = try DetachedTaskReaper(1).create(ctx.io, ctx.allocator),
@@ -95,7 +96,7 @@ const PollerCallback = struct {
         try self.reaper.spawn(watchStdinInternal, .{ self.push_pipe, &self.stdin });
     }
 
-    pub fn handleMessage(poller: *nnng.ReceivePoller, results: []const nnng.ReceivePoller.WakeupResult) anyerror!void {
+    pub fn handleMessage(poller: *Poller, results: []const Poller.WakeupResult) anyerror!void {
         if (results.len == 0) return;
 
         var self: *Self = @fieldParentPtr("poller", poller);
