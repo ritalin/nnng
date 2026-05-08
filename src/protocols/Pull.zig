@@ -64,7 +64,7 @@ test "PULL tests" {
 }
 
 pub const tests = struct {
-    const pull = @import("./pull.zig");
+    const pull = @import("./Pull.zig");
     const test_support = @import("../supports/test.zig");
 
     const Message = @import("../message/Message.zig");
