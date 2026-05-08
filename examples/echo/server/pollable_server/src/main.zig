@@ -1,12 +1,15 @@
 const std = @import("std");
 const nnng = @import("nnng");
 const supports = @import("echo_support");
+const Poller = nnng.ReceivePoller(4);
 
 pub fn main(init: std.process.Init) !void {
     const ctx = nnng.Context.init(init.io, init.gpa);
 
     const url = try supports.make_ipc_url(init, "echo-pollable");
     defer init.gpa.free(url);
+
+    std.log.info("IPC url: {s}", .{url});
 
     var rep_socket: nnng.rep.Rep(nnng.Transport.Listener, nnng.Pipe.Parallel) = socket: {
         var b = try nnng.rep.open(ctx);
@@ -17,10 +20,10 @@ pub fn main(init: std.process.Init) !void {
     try rep_socket.transport.start();
     defer rep_socket.close();
 
-    var poller = try nnng.ReceivePoller.create(ctx, 4);
+    var poller = try Poller.create(ctx);
     defer poller.deinit();
 
-    try poller.attach(&rep_socket.pipe);
+    try Poller.Parallel.attach(&poller, &rep_socket.pipe);
 
     while (true) {
         _ = try poller.poll(PollerCallback.replyMessage);
@@ -28,7 +31,7 @@ pub fn main(init: std.process.Init) !void {
 }
 
 const PollerCallback = struct {
-    pub fn replyMessage(poller: *nnng.ReceivePoller, results: []const nnng.ReceivePoller.WakeupResult) anyerror!void {
+    pub fn replyMessage(poller: *Poller, results: []const Poller.WakeupResult) anyerror!void {
         for (results) |result| {
             switch (result.event) {
                 .failed => |err| {
@@ -43,7 +46,7 @@ const PollerCallback = struct {
                     try msg.writer.print("{s}{s}", .{ v, v });
                     try  msg.writer.flush();
 
-                    try channel.sender().submit(msg, .{ .nonblocking = true });
+                    try channel.sender().submit(msg, .{ .flags = .{ .nonblocking = true }});
                 }
             }
         }
