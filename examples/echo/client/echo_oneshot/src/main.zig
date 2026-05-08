@@ -34,7 +34,7 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(url);
 
     var socket = socket: {
-        var b = try nnng.req.open(ctx);
+        var b = try nnng.Req.open(ctx);
         break:socket try b.as_dialer(url);
     };
     try socket.transport.start();

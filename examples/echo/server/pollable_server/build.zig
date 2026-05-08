@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const exe = b.addExecutable(.{
-        .name = "echo-server-poolable",
+        .name = "echo-server-pollable",
         .root_module = b.addModule("server", .{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

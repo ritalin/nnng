@@ -283,7 +283,7 @@ test "Poller tests" {
 
 pub const tests = struct {
     const test_support = @import("../supports/test.zig");
-    const Poller = root.ReceivePoller(32);
+    const TestPoller = root.ReceivePoller(32);
 
     test "new receive poller with receiving sync pipe" {
         var tmp = std.testing.tmpDir(.{});
@@ -292,18 +292,18 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
         // Open REP socket
         var rep_socket = socket: {
-            var b = try root.rep.open(ctx);
+            var b = try root.Rep.open(ctx);
             break:socket try b.as_listener(url);
         };
         try rep_socket.transport.start();
         defer rep_socket.close();
 
-        try Poller.Sync.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
         try std.testing.expectEqual(1, poller.poller_pipes.count());
         try std.testing.expectEqual(1, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -316,18 +316,18 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
         // Open REP socket
         var rep_socket = socket: {
-            var b = try root.rep.open(ctx);
+            var b = try root.Rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
         try rep_socket.transport.start();
         defer rep_socket.close();
 
-        try Poller.Parallel.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
         try std.testing.expectEqual(3, poller.poller_pipes.count());
         try std.testing.expectEqual(3, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -340,18 +340,18 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
         // Open REQ#2 socket
         var req_socket = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket.transport.start();
         defer req_socket.close();
 
-        try Poller.Sync.attach(&poller, &req_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &req_socket.pipe);
         try std.testing.expectEqual(1, poller.poller_pipes.count());
         try std.testing.expectEqual(0, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -364,18 +364,18 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
         // Open REQ#2 socket
         var req_socket = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.parallel(3).as_dialer(url);
         };
         try req_socket.transport.start();
         defer req_socket.close();
 
-        try Poller.Parallel.attach(&poller, &req_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &req_socket.pipe);
         try std.testing.expectEqual(3, poller.poller_pipes.count());
         try std.testing.expectEqual(0, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -391,7 +391,7 @@ pub const tests = struct {
 
         // Open REP socket
         var rep_socket = socket: {
-            var b = try root.rep.open(ctx);
+            var b = try root.Rep.open(ctx);
             break:socket try b.as_listener(url);
         };
         try rep_socket.transport.start();
@@ -399,7 +399,7 @@ pub const tests = struct {
 
         // Open REQ socket
         var req_socket1 = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket1.transport.start();
@@ -407,7 +407,7 @@ pub const tests = struct {
 
         // Open REQ#2 socket
         var req_socket2 = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket2.transport.start();
@@ -426,11 +426,11 @@ pub const tests = struct {
         }
 
         // Receive with Poller
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
         const PollCallback = struct {
-            pub fn replyMsg(p: *Poller, results: []const Poller.WakeupResult) anyerror!void {
+            pub fn replyMsg(p: *TestPoller, results: []const TestPoller.WakeupResult) anyerror!void {
                 try std.testing.expectEqual(0, p.skip_set.count());
                 try std.testing.expectEqual(1, p.ready_set.count());
                 try std.testing.expectEqual(0, p.in_fight_set.count());
@@ -454,7 +454,7 @@ pub const tests = struct {
             }
         };
 
-        try Poller.Sync.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
         _ = try poller.poll(PollCallback.replyMsg);
 
         receive_msg: {
@@ -475,7 +475,7 @@ pub const tests = struct {
 
         // Open REP socket
         var rep_socket = socket: {
-            var b = try root.rep.open(ctx);
+            var b = try root.Rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
         try rep_socket.transport.start();
@@ -483,7 +483,7 @@ pub const tests = struct {
 
         // Open REQ socket
         var req_socket1 = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try req_socket1.transport.start();
@@ -491,7 +491,7 @@ pub const tests = struct {
 
         // Open REQ#2 socket
         var req_socket2 = socket: {
-            var b = try root.req.open(ctx);
+            var b = try root.Req.open(ctx);
             break:socket try b.parallel(1).as_dialer(url);
         };
         try req_socket2.transport.start();
@@ -524,7 +524,7 @@ pub const tests = struct {
         }
 
         const PollCallback = struct {
-            pub fn replyMsg(p: *Poller, results: []const Poller.WakeupResult) anyerror!void {
+            pub fn replyMsg(p: *TestPoller, results: []const TestPoller.WakeupResult) anyerror!void {
                 try std.testing.expectEqual(0, p.skip_set.count());
                 try std.testing.expectEqual(3, p.ready_set.count() + p.in_fight_set.count());
 
@@ -563,10 +563,10 @@ pub const tests = struct {
         };
 
         // Receive with Poller
-        var poller = try Poller.create(ctx);
+        var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        try Poller.Parallel.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
 
         var accept: usize = 0;
         while (accept < 2) {

@@ -10,8 +10,8 @@ pub fn main(init: std.process.Init) !void {
 
     std.log.info("IPC url: {s}", .{url});
 
-    var rep_socket: nnng.rep.Rep(nnng.Transport.Listener, nnng.Pipe.Parallel) = socket: {
-        var b = try nnng.rep.open(ctx);
+    var rep_socket: nnng.Rep.Protocol(nnng.Transport.Listener, nnng.Pipe.Parallel) = socket: {
+        var b = try nnng.Rep.open(ctx);
         break:socket try b.parallel(3).as_listener(url);
     };
     errdefer rep_socket.close();
