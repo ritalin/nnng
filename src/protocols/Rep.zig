@@ -3,6 +3,8 @@ const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
+const Rep = @This();
+
 const Context = root.Context;
 const Socket = root.Socket;
 const OpenError = root.OpenError;
@@ -10,7 +12,7 @@ const Pipe = root.Pipe;
 
 /// Creates a REP protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep.Protocol) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_rep0_open(&raw_socket);
     if (err != 0) {
@@ -22,13 +24,13 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep) {
         .receive_first = true,
     };
 
-    return Socket.SyncBuilder(Rep).init(socket, features);
+    return Socket.SyncBuilder(Rep.Protocol).init(socket, features);
 }
 
 /// REP protocol type.
 /// Transport: connection role (Listener or Dialer).
 /// Pipe: message handling model (Sync or Parallel).
-pub fn Rep(comptime TTransport: type, comptime TPipe: type) type {
+pub fn Protocol(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
         /// Transport role.
         transport: TTransport,

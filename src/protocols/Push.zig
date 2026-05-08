@@ -3,6 +3,8 @@ const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
+const Push = @This();
+
 const Context = root.Context;
 const Socket = root.Socket;
 const OpenError = root.OpenError;
@@ -11,7 +13,7 @@ const Pipe = root.Pipe;
 
 /// Creates a PUSH protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push.Protocol) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_push0_open(&raw_socket);
     if (err != 0) {
@@ -23,13 +25,13 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push) {
         .send_first = true,
     };
 
-    return Socket.SyncBuilder(Push).init(socket, features);
+    return Socket.SyncBuilder(Push.Protocol).init(socket, features);
 }
 
 /// PUSH protocol type.
 /// Transport: connection role (Listener or Dialer).
 /// Pipe: message handling model (Sync or Parallel).
-pub fn Push(comptime TTransport: type, comptime TPipe: type) type {
+pub fn Protocol(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
         /// Transport role.
         transport: TTransport,
@@ -61,7 +63,7 @@ test "PUSH tests" {
 }
 
 pub const tests = struct {
-    const pull = @import("./pull.zig");
+    const Pull = @import("./Pull.zig");
     const test_support = @import("../supports/test.zig");
 
     const Message = @import("../message/Message.zig");
@@ -75,8 +77,8 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
@@ -90,8 +92,8 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try socket.transport.start();
@@ -120,16 +122,16 @@ pub const tests = struct {
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
         // Open PUSH socket
-        var push_socket: Push(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var push_socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
             break:socket try b.as_dialer(url);
         };
         try push_socket.transport.start();
         defer push_socket.close();
 
         // Open PULL socket
-        var pull_socket: pull.Pull(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try pull.open(ctx);
+        var pull_socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
             break:socket try b.as_listener(url);
         };
         try pull_socket.transport.start();

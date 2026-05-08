@@ -3,6 +3,8 @@ const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
+const Pull = @This();
+
 const Context = root.Context;
 const Socket = root.Socket;
 const OpenError = root.OpenError;
@@ -11,7 +13,7 @@ const Pipe = root.Pipe;
 
 /// Creates a PULL protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull.Protocol) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_pull0_open(&raw_socket);
     if (err != 0) {
@@ -24,13 +26,13 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull) {
         .last_msg_owner = true,
     };
 
-    return Socket.SyncBuilder(Pull).init(socket, features);
+    return Socket.SyncBuilder(Pull.Protocol).init(socket, features);
 }
 
 /// PULL protocol type.
 /// Transport: connection role (Listener or Dialer).
 /// Pipe: message handling model (Sync or Parallel).
-pub fn Pull(comptime TTransport: type, comptime TPipe: type) type {
+pub fn Protocol(comptime TTransport: type, comptime TPipe: type) type {
     return struct {
         /// Transport role.
         transport: TTransport,
@@ -76,8 +78,8 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Pull(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
             break:socket try b.as_listener(url);
         };
         try socket.transport.start();
@@ -91,8 +93,8 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Pull(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try open(ctx);
+        var socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
             break:socket try b.as_listener(url);
         };
         try socket.transport.start();
