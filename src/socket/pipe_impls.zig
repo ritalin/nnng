@@ -19,7 +19,7 @@ pub const SyncSenderImpl = struct {
     pub fn submit_message(sender: *const Sender, msg: Message, options: Sender.Options) root.SendError!void {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(sender.owner));
 
-        std.log.debug("Start sending/flags: {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
+        std.log.debug("Start sending/socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
 
         c.nng_aio_set_msg(pipe.raw_aio, msg.raw_msg);
         c.nng_send_aio(pipe.socket.raw_socket, pipe.raw_aio);
@@ -39,7 +39,7 @@ pub const SyncReceiverImpl = struct {
     pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
-        std.log.debug("Start receiving:Sync/id: {}, flags: {}", .{pipe.id, options});
+        std.log.debug("Start receiving:Sync/socket: {}, id: {}, flags: {}, addr: {}", .{pipe.socket.raw_socket, pipe.id, options});
 
         c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
 
