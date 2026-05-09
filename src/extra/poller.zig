@@ -300,7 +300,7 @@ pub const tests = struct {
             var b = try root.Rep.open(ctx);
             break:socket try b.as_listener(url);
         };
-        try rep_socket.transport.start();
+        try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
         try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
@@ -324,7 +324,7 @@ pub const tests = struct {
             var b = try root.Rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
-        try rep_socket.transport.start();
+        try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
         try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
@@ -343,12 +343,20 @@ pub const tests = struct {
         var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        // Open REQ#2 socket
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.Rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        // Open REQ socket
         var req_socket = socket: {
             var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try req_socket.transport.start();
+        try req_socket.transport.start(.{});
         defer req_socket.close();
 
         try TestPoller.Sync.attach(&poller, &req_socket.pipe);
@@ -367,12 +375,20 @@ pub const tests = struct {
         var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        // Open REQ#2 socket
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.Rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        // Open REQ socket
         var req_socket = socket: {
             var b = try root.Req.open(ctx);
             break:socket try b.parallel(3).as_dialer(url);
         };
-        try req_socket.transport.start();
+        try req_socket.transport.start(.{});
         defer req_socket.close();
 
         try TestPoller.Parallel.attach(&poller, &req_socket.pipe);
@@ -394,7 +410,7 @@ pub const tests = struct {
             var b = try root.Rep.open(ctx);
             break:socket try b.as_listener(url);
         };
-        try rep_socket.transport.start();
+        try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
         // Open REQ socket
@@ -402,7 +418,7 @@ pub const tests = struct {
             var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try req_socket1.transport.start();
+        try req_socket1.transport.start(.{});
         defer req_socket1.close();
 
         // Open REQ#2 socket
@@ -410,7 +426,7 @@ pub const tests = struct {
             var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try req_socket2.transport.start();
+        try req_socket2.transport.start(.{});
         defer req_socket2.close();
 
         var req_pipe1 = iter: {
@@ -478,7 +494,7 @@ pub const tests = struct {
             var b = try root.Rep.open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
-        try rep_socket.transport.start();
+        try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
         // Open REQ socket
@@ -486,7 +502,7 @@ pub const tests = struct {
             var b = try root.Req.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try req_socket1.transport.start();
+        try req_socket1.transport.start(.{});
         defer req_socket1.close();
 
         // Open REQ#2 socket
@@ -494,7 +510,7 @@ pub const tests = struct {
             var b = try root.Req.open(ctx);
             break:socket try b.parallel(1).as_dialer(url);
         };
-        try req_socket2.transport.start();
+        try req_socket2.transport.start(.{});
         defer req_socket2.close();
 
         // get send pipe

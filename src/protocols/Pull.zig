@@ -70,21 +70,6 @@ pub const tests = struct {
     const Sender = @import("../message/Sender.zig");
     const Receiver = @import("../message/Receiver.zig");
 
-    test "new PULL socket" {
-        var tmp = std.testing.tmpDir(.{});
-        defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
-        defer std.testing.allocator.free(url);
-
-        const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Pull.open(ctx);
-            break:socket try b.as_listener(url);
-        };
-        try socket.transport.start();
-        defer socket.close();
-    }
-
     test "PULL socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
@@ -96,7 +81,7 @@ pub const tests = struct {
             var b = try Pull.open(ctx);
             break:socket try b.as_listener(url);
         };
-        try socket.transport.start();
+        try socket.transport.start(.{});
         defer socket.close();
 
         var iter = socket.pipe.iter();
