@@ -15,7 +15,7 @@ pub fn main(init: std.process.Init) !void {
     };
     errdefer push_socket.close();
 
-    try push_socket.transport.start();
+    try push_socket.transport.start(.{});
     defer push_socket.close();
 
     // Open PULL socket
@@ -25,7 +25,7 @@ pub fn main(init: std.process.Init) !void {
     };
     errdefer pull_socket.close();
 
-    try pull_socket.transport.start();
+    try pull_socket.transport.start(.{});
     defer pull_socket.close();
 
     const pusg_pipe = pipe: {

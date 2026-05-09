@@ -16,7 +16,7 @@ pub fn main(init: std.process.Init) !void {
     };
     errdefer rep_socket.close();
 
-    try rep_socket.transport.start();
+    try rep_socket.transport.start(.{});
     defer rep_socket.close();
 
     var pipes = rep_socket.pipe.iter();
