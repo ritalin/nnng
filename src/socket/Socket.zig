@@ -191,9 +191,9 @@ pub const tests = struct {
        const socket = Socket.init(ctx, raw_socket);
        defer socket.close();
 
-       try socket.setOptions(.{ .recv_timeout = 1234 });
-       const values = try socket.options(&.{ .recv_timeout, .send_timeout });
-       try std.testing.expectEqualDeep(Socket.Option.Values.Get{ .recv_timeout = 1234, .send_timeout = c.NNG_DURATION_INFINITE }, values);
+       try socket.setOptions(.{ .recv_timeout_ms = 1234 });
+       const values = try socket.options(&.{ .recv_timeout_ms, .send_timeout_ms });
+       try std.testing.expectEqualDeep(Socket.Option.Values.Get{ .recv_timeout_ms = 1234, .send_timeout_ms = c.NNG_DURATION_INFINITE }, values);
    }
 
    test "get read-only socket options" {

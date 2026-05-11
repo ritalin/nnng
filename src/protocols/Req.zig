@@ -362,4 +362,62 @@ pub const tests = struct {
             break:receive_REQ_2;
         }
     }
+
+    test "REP receive timeout for sync pipe" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var rep_socket: Rep.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        var pipe = rep_socket.pipe.pipe;
+        timeout: {
+            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            try std.testing.expectError(error.Timeout, msg);
+            break:timeout;
+        }
+        timeout: {
+            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20), .flags = .{ .nonblocking = true } });
+            try std.testing.expectError(error.WouldBlock, msg);
+            break:timeout;
+        }
+    }
+
+    test "REP receive timeout for parallel pipe" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var rep_socket: Rep.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
+            var b = try Rep.open(ctx);
+            break:socket try b.parallel(3).as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        var pipe = rep_socket.pipe.items[1];
+        timeout: {
+            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            try std.testing.expectError(error.Timeout, msg);
+            break:timeout;
+        }
+        timeout: {
+            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20), .flags = .{ .nonblocking = true } });
+            try std.testing.expectError(error.WouldBlock, msg);
+            break:timeout;
+        }
+    }
 };

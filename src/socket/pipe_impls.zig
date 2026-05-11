@@ -21,14 +21,14 @@ pub const SyncSenderImpl = struct {
 
         std.log.debug("Start sending/socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
 
-        c.nng_aio_set_msg(pipe.raw_aio, msg.raw_msg);
-        c.nng_send_aio(pipe.socket.raw_socket, pipe.raw_aio);
+        c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
+        c.nng_send_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
 
         if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_aio_wait(pipe.aio_slot.raw_aio);
         }
 
-        const err = c.nng_aio_result( pipe.raw_aio);
+        const err = c.nng_aio_result( pipe.aio_slot.raw_aio);
         if (err != 0) {
             return errors.send_error(err);
         }
@@ -39,24 +39,29 @@ pub const SyncReceiverImpl = struct {
     pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
+        try receiver.slot.storeReceiveOpion(options);
+
         std.log.debug("Start receiving:Sync/socket: {}, id: {}, flags: {}", .{pipe.socket.raw_socket, pipe.id, options});
 
-        c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
+        c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
 
         if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_aio_wait(pipe.aio_slot.raw_aio);
         }
 
-        const err = c.nng_aio_result(pipe.raw_aio);
+        const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
         if (err != 0) {
+            defer if (err != c.NNG_EAGAIN) { receiver.slot.reset(); };
             return errors.receive_error(err);
         }
 
-        const raw_msg = c.nng_aio_get_msg(pipe.raw_aio);
+        const raw_msg = c.nng_aio_get_msg(pipe.aio_slot.raw_aio);
         if (raw_msg == null) {
             // Result is not available yet
             return error.WouldBlock;
         }
+
+        defer receiver.slot.reset();
 
         const msg = Message.fromRaw(raw_msg.?);
         std.log.debug("Received:Sync/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});
@@ -71,13 +76,13 @@ pub const ParallelSenderImpl = struct {
 
         std.log.debug("Start sending:Parallel/flags(discard): {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
 
-        c.nng_aio_set_msg(pipe.raw_aio, msg.raw_msg);
-        c.nng_ctx_send(pipe.raw_ctx, pipe.raw_aio);
+        c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
+        c.nng_ctx_send(pipe.raw_ctx, pipe.aio_slot.raw_aio);
 
         if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_aio_wait(pipe.aio_slot.raw_aio);
         }
-        const err = c.nng_aio_result(pipe.raw_aio);
+        const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
         if (err != 0) {
             return errors.send_error(@intCast(err));
         }
@@ -88,23 +93,29 @@ pub const ParallelReceiverImpl = struct {
     pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Parallel.Item = @ptrCast(@alignCast(receiver.owner));
 
-        c.nng_ctx_recv(pipe.raw_ctx, pipe.raw_aio);
-        std.log.debug("Start receiving:Parallel/id: {}, flags: {}", .{pipe.id, options});
+        try receiver.slot.storeReceiveOpion(options);
+
+        std.log.debug("Start receiving:Sync/id: {}, flags: {}", .{pipe.id, options});
+
+        c.nng_ctx_recv(pipe.raw_ctx, receiver.slot.raw_aio);
 
         if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_aio_wait(receiver.slot.raw_aio);
         }
 
-        const err = c.nng_aio_result(pipe.raw_aio);
+        const err = c.nng_aio_result(receiver.slot.raw_aio);
         if (err != 0) {
+            defer if (err != c.NNG_EAGAIN) { receiver.slot.reset(); };
             return errors.receive_error(@intCast(err));
         }
 
-        const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(pipe.raw_aio);
+        const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(receiver.slot.raw_aio);
         if (raw_msg == null) {
             // Result is not available yet
             return error.WouldBlock;
         }
+
+        defer receiver.slot.reset();
 
         const msg = Message.fromRaw(raw_msg.?);
         std.log.debug("Received:Parallel/id: {}, len(edit): {}, len(commit): {}", .{pipe.id, msg.writer.end, msg.len()});

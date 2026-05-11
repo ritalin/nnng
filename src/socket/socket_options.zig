@@ -5,9 +5,9 @@ pub const Option = struct {
     pub const Values = struct {
         pub const Set = struct {
             /// This is the socket send timeout in milliseconds.
-            send_timeout: ?i32 = null,
+            send_timeout_ms: ?i32 = null,
             /// This is the socket receive timeout in milliseconds.
-            recv_timeout: ?i32 = null,
+            recv_timeout_ms: ?i32 = null,
         };
 
         pub const Get = struct {
@@ -16,9 +16,9 @@ pub const Option = struct {
             /// file descriptor suitable for use with poll(), select() for recv
             recv_fd: ?c_int = null,
             /// This is the socket send timeout in milliseconds.
-            send_timeout: ?i32 = null,
+            send_timeout_ms: ?i32 = null,
             /// This is the socket receive timeout in milliseconds.
-            recv_timeout: ?i32 = null,
+            recv_timeout_ms: ?i32 = null,
             /// A connected peer’s primary group id
             peer_gid: ?u64 = null,
             /// A process id of the connected peer,
@@ -37,8 +37,8 @@ pub const OptionInfo = struct {
 const GetOptionInfoMap = std.StaticStringMap(OptionInfo).initComptime(.{
     .{ @tagName(.send_fd), OptionInfo{ .raw_name = c.NNG_OPT_SENDFD, .type = c_int } },
     .{ @tagName(.recv_fd), OptionInfo{ .raw_name = c.NNG_OPT_RECVFD, .type = c_int } },
-    .{ @tagName(.send_timeout), OptionInfo{ .raw_name = c.NNG_OPT_SENDTIMEO, .type = i32 } },
-    .{ @tagName(.recv_timeout), OptionInfo{ .raw_name = c.NNG_OPT_RECVTIMEO, .type = i32 } },
+    .{ @tagName(.send_timeout_ms), OptionInfo{ .raw_name = c.NNG_OPT_SENDTIMEO, .type = i32 } },
+    .{ @tagName(.recv_timeout_ms), OptionInfo{ .raw_name = c.NNG_OPT_RECVTIMEO, .type = i32 } },
     .{ @tagName(.peer_gid), OptionInfo{ .raw_name = c.NNG_OPT_PEER_GID, .type = u64 } },
     .{ @tagName(.peer_pid), OptionInfo{ .raw_name = c.NNG_OPT_PEER_PID, .type = u64 } },
     .{ @tagName(.peer_uid), OptionInfo{ .raw_name = c.NNG_OPT_PEER_UID, .type = u64 } },
@@ -49,8 +49,8 @@ pub fn findGetOptionInfo(field: std.meta.FieldEnum(Option.Values.Get)) ?OptionIn
 }
 
 const SetOptionInfoMap = std.StaticStringMap(OptionInfo).initComptime(.{
-    .{ @tagName(.send_timeout), OptionInfo{ .raw_name = c.NNG_OPT_SENDTIMEO, .type = i32 } },
-    .{ @tagName(.recv_timeout), OptionInfo{ .raw_name = c.NNG_OPT_RECVTIMEO, .type = i32 } },
+    .{ @tagName(.send_timeout_ms), OptionInfo{ .raw_name = c.NNG_OPT_SENDTIMEO, .type = i32 } },
+    .{ @tagName(.recv_timeout_ms), OptionInfo{ .raw_name = c.NNG_OPT_RECVTIMEO, .type = i32 } },
 });
 
 pub fn findSetOptionInfo(field: std.meta.FieldEnum(Option.Values.Set)) ?OptionInfo {
