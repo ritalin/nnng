@@ -146,3 +146,27 @@ pub fn receive_error(err: c_int) root.ReceiveError {
     std.log.err("receive_error/unhandled code: {}", .{err});
     unreachable;
 }
+
+pub fn option_error(err: c_int) root.OptionError {
+    if (err == c.NNG_EBADTYPE) {
+        return error.BadType;
+    }
+    if (err == c.NNG_ECLOSED) {
+        return error.AlreadyClosed;
+    }
+    if (err == c.NNG_EINVAL) {
+        return error.InvalidValue;
+    }
+    if (err == c.NNG_ENOMEM) {
+        return error.OutOfMemory;
+    }
+    if (err == c.NNG_ENOTSUP) {
+        return error.NotSupported;
+    }
+    if (err == c.NNG_EWRITEONLY) {
+        return error.WriteOnly;
+    }
+
+    std.log.err("option_error/unhandled code: {}", .{err});
+    unreachable;
+}
