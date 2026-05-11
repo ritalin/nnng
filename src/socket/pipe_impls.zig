@@ -39,7 +39,7 @@ pub const SyncReceiverImpl = struct {
     pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
-        std.log.debug("Start receiving:Sync/socket: {}, id: {}, flags: {}, addr: {}", .{pipe.socket.raw_socket, pipe.id, options});
+        std.log.debug("Start receiving:Sync/socket: {}, id: {}, flags: {}", .{pipe.socket.raw_socket, pipe.id, options});
 
         c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
 
