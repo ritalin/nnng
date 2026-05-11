@@ -60,7 +60,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                 if (self.in_fight_set.contains(id.*)) continue;
                 if (self.skip_set.contains(id.*)) continue;
 
-                if (self.poller_pipes.getPtr(id.*)) |pipe| {
+                if (self.poller_pipes.get(id.*)) |pipe| {
                     try self.in_fight_set.put(id.*, {});
                     self.tasks.attach(id.*, pipe, &channels[i]);
                     i += 1;
@@ -188,7 +188,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                allocator.destroy(self);
            }
 
-           fn attach(self: *PollerTaskImpl, id: u64, pipe: *poller_impl.PollerPipe, channel: *ReadyChannel) void {
+           fn attach(self: *PollerTaskImpl, id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) void {
                self.select.async(.event, doReceive, .{ id, pipe, channel });
            }
 
@@ -199,7 +199,8 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
     };
 }
 
-fn doReceive(id: u64, pipe: *poller_impl.PollerPipe, channel: *ReadyChannel) PollEvent {
+fn doReceive(id: u64, pipe0: poller_impl.PollerPipe, channel: *ReadyChannel) PollEvent {
+    var pipe = pipe0;
     pipe.wait(channel)
     catch |err| return .{
         .failed = .{ .id = id, .err = err },
