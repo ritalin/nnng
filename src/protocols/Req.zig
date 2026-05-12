@@ -12,9 +12,13 @@ const Pipe = root.Pipe;
 const OpenError = root.OpenError;
 const CloseError = root.CloseError;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+};
+
 /// Creates a REQ protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_req0_open(&raw_socket);
     if (err != 0) {
@@ -27,7 +31,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Req.Protocol) {
         .last_msg_owner = true,
     };
 
-    return Socket.SyncBuilder(Req.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Req.Protocol, comptime_feature).init(socket, features);
 }
 
 /// REQ protocol type.

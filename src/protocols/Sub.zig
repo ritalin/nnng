@@ -11,9 +11,13 @@ const OpenError = root.OpenError;
 const Transport = root.Transport;
 const Pipe = root.Pipe;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+};
+
 /// Creates a SUB protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Sub.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Sub.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_sub0_open(&raw_socket);
     if (err != 0) {
@@ -26,7 +30,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Sub.Protocol) {
         .last_msg_owner = true,
     };
 
-    return Socket.SyncBuilder(Sub.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Sub.Protocol, comptime_feature).init(socket, features);
 }
 
 /// SUB protocol type.

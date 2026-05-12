@@ -10,9 +10,13 @@ const Socket = root.Socket;
 const OpenError = root.OpenError;
 const Pipe = root.Pipe;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+};
+
 /// Creates a REP protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_rep0_open(&raw_socket);
     if (err != 0) {
@@ -24,7 +28,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Rep.Protocol) {
         .receive_first = true,
     };
 
-    return Socket.SyncBuilder(Rep.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Rep.Protocol, comptime_feature).init(socket, features);
 }
 
 /// REP protocol type.

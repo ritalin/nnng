@@ -11,9 +11,14 @@ const OpenError = root.OpenError;
 const Transport = root.Transport;
 const Pipe = root.Pipe;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+    .forbid_parallel = true,
+};
+
 /// Creates a PULL protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_pull0_open(&raw_socket);
     if (err != 0) {
@@ -26,7 +31,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pull.Protocol) {
         .last_msg_owner = true,
     };
 
-    return Socket.SyncBuilder(Pull.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Pull.Protocol, comptime_feature).init(socket, features);
 }
 
 /// PULL protocol type.

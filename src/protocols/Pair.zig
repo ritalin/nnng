@@ -12,9 +12,14 @@ const Pipe = root.Pipe;
 const OpenError = root.OpenError;
 const CloseError = root.CloseError;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+    .forbid_parallel = true,
+};
+
 /// Creates a PAIR protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pair.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pair.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_pair1_open(&raw_socket);
     if (err != 0) {
@@ -27,7 +32,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pair.Protocol) {
         .receive_first = true,
     };
 
-    return Socket.SyncBuilder(Pair.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Pair.Protocol, comptime_feature).init(socket, features);
 }
 
 /// PAIR protocol type.
