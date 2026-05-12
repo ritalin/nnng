@@ -14,6 +14,7 @@ pub const Push = @import("./protocols/Push.zig");
 pub const Pull = @import("./protocols/Pull.zig");
 pub const Pub = @import("./protocols/Pub.zig");
 pub const Sub = @import("./protocols/Sub.zig");
+pub const Pair = @import("./protocols/Pair.zig");
 
 // extras
 pub const ReceivePoller = @import("./extra/poller.zig").ReceivePoller;
