@@ -5,9 +5,18 @@ const c = @import("c");
 
 const Socket = @import("./Socket.zig");
 
-const Option = enum(i32) { nonblocking = 1 };
+const Option = enum(i32) { nonblocking };
 // Connection options
 pub const Options = std.enums.EnumFieldStruct(Option, bool, false);
+
+fn optionsIntoMask(options: Options) c_int {
+    var mask: c_int = 0;
+    if (options.nonblocking) {
+        mask += c.NNG_FLAG_NONBLOCK;
+    }
+
+    return mask;
+}
 
 pub const Listener = struct {
     socket: Socket,
@@ -45,7 +54,7 @@ pub const Listener = struct {
 
     /// Starts listening for incoming connections.
     pub fn start(self: Self, options: Options) root.StartTransportError!void {
-        const flags = std.enums.EnumSet(Option).init(options).bits.mask;
+        const flags = optionsIntoMask(options);
 
         const err = c.nng_listener_start(self.raw_listener, flags);
         if (err != 0) {
@@ -86,7 +95,7 @@ pub const Dialer = struct {
     }
 
     pub fn start(self: Self, options: Options) root.StartTransportError!void {
-        const flags = std.enums.EnumSet(Option).init(options).bits.mask;
+        const flags = optionsIntoMask(options);
 
         const err = c.nng_dialer_start(self.raw_dialer, flags);
         if (err != 0) {
