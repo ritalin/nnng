@@ -89,6 +89,10 @@ pub fn options(self: Socket, comptime names: []const std.meta.FieldEnum(Option.V
     return result;
 }
 
+pub const ComptimeFeature = struct {
+    protocol_name: []const u8,
+    forbid_parallel: bool = false,
+};
 
 /// Builder for protocol instances using Pipe.Sync.
 ///
@@ -96,7 +100,7 @@ pub fn options(self: Socket, comptime names: []const std.meta.FieldEnum(Option.V
 /// as_listener() or as_dialer().
 ///
 /// Call parallel() to switch to Pipe.Parallel.
-pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) type) type {
+pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) type, comptime comptime_feature: ComptimeFeature) type {
     return struct {
         socket: Socket,
         features: Pipe.Features,
@@ -114,6 +118,10 @@ pub fn SyncBuilder(comptime Protocol: *const fn (comptime type, comptime type) t
         /// Switch to Pipe.Parallel builder.
         /// `count` specifies the number of parallel pipe instances.
         pub fn parallel(self: Builder, count: usize) ParallelBuilder(Protocol) {
+            if (comptime comptime_feature.forbid_parallel) {
+                @compileError(std.fmt.comptimePrint("{s} is not supported a parallel pipe", .{ comptime_feature.protocol_name }));
+            }
+
             return .{
                 .socket = self.socket,
                 .count = count,

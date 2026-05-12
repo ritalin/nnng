@@ -11,9 +11,14 @@ const OpenError = root.OpenError;
 const Transport = root.Transport;
 const Pipe = root.Pipe;
 
+const comptime_feature: Socket.ComptimeFeature = .{
+    .protocol_name = @typeName(@This()),
+    .forbid_parallel = true,
+};
+
 /// Creates a PUSH protocol socket instance.
 /// This is the primary way to construct the type.
-pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push.Protocol) {
+pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push.Protocol, comptime_feature) {
     var raw_socket: c.nng_socket = undefined;
     const err = c.nng_push0_open(&raw_socket);
     if (err != 0) {
@@ -25,7 +30,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Push.Protocol) {
         .send_first = true,
     };
 
-    return Socket.SyncBuilder(Push.Protocol).init(socket, features);
+    return Socket.SyncBuilder(Push.Protocol, comptime_feature).init(socket, features);
 }
 
 /// PUSH protocol type.
