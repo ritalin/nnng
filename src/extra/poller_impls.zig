@@ -14,16 +14,16 @@ const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
 
 pub const PollerPipe = struct {
-    owner: *const anyopaque,
+    owner: *anyopaque,
     vtable: struct {
-        on_wait_complete: *const fn (owner: *const anyopaque, channel: *ReadyChannel) ReceiveError!void,
+        on_wait_complete: *const fn (owner: *anyopaque, channel: *ReadyChannel) ReceiveError!void,
         on_cancel: *const fn (owner: *const anyopaque) void,
     },
     features: Pipe.Features,
 
     const Self = @This();
 
-    pub fn wait(self: Self, channel: *ReadyChannel) ReceiveError!void {
+    pub fn wait(self: *Self, channel: *ReadyChannel) ReceiveError!void {
         return (self.vtable.on_wait_complete)(self.owner, channel);
     }
 
@@ -37,17 +37,17 @@ pub const PollerPipeImpl = union(enum) {
     parallel: PollerPipeImpl.Parallel,
 
     pub const Sync = struct {
-        pipe: *const Pipe.Sync.Item,
+        pipe: *Pipe.Sync.Item,
 
         const Self = @This();
 
-        pub fn waitComplete(ptr: *const anyopaque, channel: *ReadyChannel) ReceiveError!void {
-            const pipe: *const Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
+        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
+            const pipe: *Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
 
-            c.nng_recv_aio(pipe.socket.raw_socket, pipe.raw_aio);
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
+            c.nng_aio_wait(pipe.aio_slot.raw_aio);
 
-            const err = c.nng_aio_result(pipe.raw_aio);
+            const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
@@ -88,28 +88,28 @@ pub const PollerPipeImpl = union(enum) {
 
             const self: *const Self = @ptrCast(@alignCast(receiver.owner));
 
-            const err = c.nng_aio_result(self.pipe.raw_aio);
+            const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
 
-            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.raw_aio);
+            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
         }
     };
 
     pub const Parallel = struct {
-        pipe: *const Pipe.Parallel.Item,
+        pipe: *Pipe.Parallel.Item,
 
         const Self = @This();
 
-        pub fn waitComplete(ptr: *const anyopaque, channel: *ReadyChannel) ReceiveError!void {
-            const pipe: *const Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
+        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
+            const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
-            c.nng_ctx_recv(pipe.raw_ctx, pipe.raw_aio);
-            c.nng_aio_wait(pipe.raw_aio);
+            c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
+            c.nng_aio_wait(pipe.aio_slot.raw_aio);
 
-            const err = c.nng_aio_result(pipe.raw_aio);
+            const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
@@ -150,12 +150,12 @@ pub const PollerPipeImpl = union(enum) {
 
             const self: *const Self = @ptrCast(@alignCast(receiver.owner));
 
-            const err = c.nng_aio_result(self.pipe.raw_aio);
+            const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
 
-            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.raw_aio);
+            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
         }
     };

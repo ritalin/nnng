@@ -12,6 +12,8 @@ pub const Req = @import("./protocols/Req.zig");
 pub const Rep = @import("./protocols/Rep.zig");
 pub const Push = @import("./protocols/Push.zig");
 pub const Pull = @import("./protocols/Pull.zig");
+pub const Pub = @import("./protocols/Pub.zig");
+pub const Sub = @import("./protocols/Sub.zig");
 
 // extras
 pub const ReceivePoller = @import("./extra/poller.zig").ReceivePoller;
@@ -38,11 +40,21 @@ pub const SendError = (
 );
 
 pub const ReceiveError = (
-    error { WouldBlock, NotSupported, Timeout, Canceled } ||
+    error { WouldBlock, NotSupported, Timeout, Canceled, OperationConflict } ||
     CloseError || InvalidError || std.mem.Allocator.Error
 );
 
 pub const OpenAioPipeError = FeatureError || std.mem.Allocator.Error;
+
+pub const OptionError = (
+    error {
+        // Incorrect type for option.
+        BadType,
+        // The option opt is write-only.
+        WriteOnly
+    }) ||
+    CloseError || InvalidError || FeatureError || std.mem.Allocator.Error
+;
 
 test "all_tests" {
     std.testing.refAllDecls(@This());

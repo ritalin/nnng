@@ -64,21 +64,6 @@ test "REP tests" {
 pub const tests = struct {
     const test_support = @import("../supports/test.zig");
 
-    test "new REP socket" {
-        var tmp = std.testing.tmpDir(.{});
-        defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
-        defer std.testing.allocator.free(url);
-
-        const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket = socket: {
-            var b = try open(ctx);
-            break:socket try b.as_listener(url);
-        };
-        try socket.transport.start();
-        defer socket.close();
-    }
-
     test "REP socket features for sync pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
@@ -90,7 +75,7 @@ pub const tests = struct {
             var b = try open(ctx);
             break:socket try b.as_listener(url);
         };
-        try socket.transport.start();
+        try socket.transport.start(.{});
         defer socket.close();
 
         var iter = socket.pipe.iter();
@@ -118,7 +103,7 @@ pub const tests = struct {
             var b = try open(ctx);
             break:socket try b.parallel(3).as_listener(url);
         };
-        try socket.transport.start();
+        try socket.transport.start(.{});
         defer socket.close();
 
         var iter = socket.pipe.iter();

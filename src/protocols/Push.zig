@@ -77,11 +77,23 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open PULL socket
+
+        var pull_socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pull_socket.transport.start(.{});
+        defer pull_socket.close();
+
+        // Open PUSH socket
+
         var socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try Push.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try socket.transport.start();
+        try socket.transport.start(.{});
         defer socket.close();
     }
 
@@ -92,11 +104,23 @@ pub const tests = struct {
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open PULL socket
+
+        var pull_socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pull_socket.transport.start(.{});
+        defer pull_socket.close();
+
+        // Open PUSH socket
+
         var socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try Push.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try socket.transport.start();
+        try socket.transport.start(.{});
         defer socket.close();
 
         var iter = socket.pipe.iter();
@@ -121,21 +145,21 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // Open PUSH socket
-        var push_socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Push.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try push_socket.transport.start();
-        defer push_socket.close();
-
         // Open PULL socket
         var pull_socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
             var b = try Pull.open(ctx);
             break:socket try b.as_listener(url);
         };
-        try pull_socket.transport.start();
+        try pull_socket.transport.start(.{});
         defer pull_socket.close();
+
+        // Open PUSH socket
+        var push_socket: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try push_socket.transport.start(.{});
+        defer push_socket.close();
 
         // get pipe
         var push_pipe = iter: {

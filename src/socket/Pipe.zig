@@ -13,6 +13,8 @@ const Socket = @import("./Socket.zig");
 const Sender = @import("../message/Sender.zig");
 const Message = @import("../message/Message.zig");
 const Receiver = @import("../message/Receiver.zig");
+const AioSlot = @import("../message/message_impl.zig").AioSlot;
+
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
 const OpenAioPipeError = root.OpenAioPipeError;
@@ -57,8 +59,8 @@ pub const Sync = struct {
     pub const Item = struct {
         id: u64,
         socket: Socket,
-        raw_aio: *c.nng_aio,
         features: Features,
+        aio_slot: AioSlot,
 
         // Internal
         pub fn create(socket: Socket, features: Features) OpenAioPipeError!Item {
@@ -71,14 +73,14 @@ pub const Sync = struct {
             return .{
                 .id = impl.PipeIdCounter.next(),
                 .socket = socket,
-                .raw_aio = raw_aio.?,
                 .features = features,
+                .aio_slot = .{ .raw_aio = raw_aio.? },
             };
         }
 
         // Internal
         pub fn deinit(self: *@This()) void {
-            c.nng_aio_free(self.raw_aio);
+            c.nng_aio_free(self.aio_slot.raw_aio);
         }
 
         /// Returns a sender for this pipe.
@@ -90,16 +92,17 @@ pub const Sync = struct {
         }
 
         /// Returns a receiver for this pipe.
-        pub fn receiver(self: *const @This()) Receiver {
+        pub fn receiver(self: *@This()) Receiver {
             return .{
                 .owner = self,
+                .slot = &self.aio_slot,
                 .on_drain = impl.SyncReceiverImpl.drain_message,
             };
         }
 
         // Cancel current session
         pub fn cancel(self: *const @This()) void {
-            _ = self;
+            c.nng_aio_cancel(self.aio_slot.raw_aio);
         }
     };
 
@@ -111,7 +114,7 @@ pub const Sync = struct {
         /// Returns the next pipe item, or null when exhausted.
         ///
         /// Yields a single item.
-        pub fn next(self: *@This()) ?*const Item {
+        pub fn next(self: *@This()) ?*Item {
             if (self.index > 0) return null;
 
             defer self.index += 1;
@@ -164,7 +167,7 @@ pub const Parallel = struct {
         /// Returns the next pipe item, or null when exhausted.
         ///
         /// Yields one item per configured parallel instance.
-        pub fn next(self: *@This()) ?*const Item {
+        pub fn next(self: *@This()) ?*Item {
             if (self.index >= self.items.len) return null;
 
             defer self.index += 1;
@@ -176,8 +179,8 @@ pub const Parallel = struct {
     pub const Item = struct {
         id: u64,
         raw_ctx: c.nng_ctx,
-        raw_aio: *c.nng_aio,
         features: Features,
+        aio_slot: AioSlot,
 
         const State = enum { send, receive };
 
@@ -204,13 +207,13 @@ pub const Parallel = struct {
             return .{
                 .id = impl.PipeIdCounter.next(),
                 .raw_ctx = raw_ctx,
-                .raw_aio = raw_aio.?,
                 .features = features,
+                .aio_slot = .{ .raw_aio = raw_aio.? },
             };
         }
 
         pub fn deinit(self: *@This()) void {
-            _ = c.nng_aio_free(self.raw_aio);
+            _ = c.nng_aio_free(self.aio_slot.raw_aio);
             _ = c.nng_ctx_close(self.raw_ctx);
             self.* = undefined;
         }
@@ -224,16 +227,17 @@ pub const Parallel = struct {
         }
 
         /// Returns a receiver for this pipe.
-        pub fn receiver(self: *const @This()) Receiver {
+        pub fn receiver(self: *@This()) Receiver {
             return .{
                 .owner = self,
+                .slot = &self.aio_slot,
                 .on_drain = impl.ParallelReceiverImpl.drain_message,
             };
         }
 
         // Cancel current session
         pub fn cancel(self: *const @This()) void {
-            c.nng_aio_cancel(self.raw_aio);
+            c.nng_aio_cancel(self.aio_slot.raw_aio);
         }
     };
 };
