@@ -1,9 +1,13 @@
 .{
     .name = .nnng,
-    .version = "0.0.0",
+    .version = "0.1.1",
     .fingerprint = 0x905c0bd4f2caa5a5, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
+        .set_version = .{
+            .url = "git+https://github.com/ritalin/zig-set-version.git#cfe4fcf0d131a0db829f34e004896aaa7f093371",
+            .hash = "zig_set_version-0.3.0-VcSFV5pjAAD05typBYB830IiYXkM2SfER2VZfqgnAlEH",
+        },
     },
     .paths = .{
         "build.zig",

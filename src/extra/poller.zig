@@ -339,7 +339,7 @@ pub const tests = struct {
     test "new receive poller with sync REQ pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep.sock");
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
