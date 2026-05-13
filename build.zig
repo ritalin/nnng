@@ -17,25 +17,20 @@ pub fn build(b: *std.Build) void {
     });
     c.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include" }) });
 
-    const mod = b.addLibrary(.{
-        .name = "nnng",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "c", .module = c.createModule() },
-            },
-        }),
+    const mod = b.addModule("nnng", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "c", .module = c.createModule() },
+        }
     });
-    mod.root_module.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
-    mod.root_module.addRPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
-    mod.root_module.linkSystemLibrary("nng", .{});
-
-    b.installArtifact(mod);
+    mod.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
+    mod.addRPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
+    mod.linkSystemLibrary("nng", .{});
 
     const mod_tests = b.addTest(.{
-        .root_module = mod.root_module,
+        .root_module = mod,
     });
 
     // A run step that will run the test executable.
