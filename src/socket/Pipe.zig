@@ -22,6 +22,7 @@ const OpenAioPipeError = root.OpenAioPipeError;
 const Feature = enum {
     send_first,
     receive_first,
+    replyable,
     last_msg_owner,
 };
 pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
@@ -29,7 +30,7 @@ pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
 /// Synchronous message handling.
 /// Processes messages in a single flow.
 pub const Sync = struct {
-    pipe: Item,
+    item: Item,
     features: Features,
 
     const Self = @This();
@@ -37,21 +38,21 @@ pub const Sync = struct {
     /// Internal. Called by protocol open().
     pub fn create(socket: Socket, features: Features) !Self {
         return .{
-            .pipe = try Item.create(socket, features),
+            .item = try Item.create(socket, features),
             .features = features,
         };
     }
 
     /// Internal. Called by protocol close().
     pub fn deinit(self: *Self) void {
-        self.pipe.deinit();
+        self.item.deinit();
     }
 
     /// Returns an iterator over the underlying pipes.
     /// This is the primary way to access pipe instances.
     pub fn iter(self: *Self) PipeIter {
         return .{
-            .item = &self.pipe,
+            .item = &self.item,
         };
     }
 

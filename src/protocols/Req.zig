@@ -383,7 +383,7 @@ pub const tests = struct {
         try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
-        var pipe = rep_socket.pipe.pipe;
+        var pipe = rep_socket.pipe.item;
         timeout: {
             const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
             try std.testing.expectError(error.Timeout, msg);

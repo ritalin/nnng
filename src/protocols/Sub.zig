@@ -280,7 +280,7 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
 
             if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id) == null) {
                 try view.protocol.topic_ids.append(allocator, .{ .socket = id, .pipe = 0 });
-                _ = c.nng_sub0_socket_subscribe(view.protocol.pipe.pipe.socket.raw_socket, topic.ptr, topic.len);
+                _ = c.nng_sub0_socket_subscribe(view.protocol.pipe.item.socket.raw_socket, topic.ptr, topic.len);
             }
         }
 
@@ -296,7 +296,7 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
 
             if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id)) |index| {
                 view.protocol.topic_ids.orderedRemove(index);
-                _ = c.nng_sub0_socket_unsubscribe(view.protocol.pipe.pipe.socket.raw_socket, topic.ptr, topic.len);
+                _ = c.nng_sub0_socket_unsubscribe(view.protocol.pipe.item.socket.raw_socket, topic.ptr, topic.len);
             }
         }
 

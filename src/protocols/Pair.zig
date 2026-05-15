@@ -30,6 +30,7 @@ pub fn open(ctx: Context) OpenError!Socket.SyncBuilder(Pair.Protocol, comptime_f
     const features: Pipe.Features = .{
         .send_first = true,
         .receive_first = true,
+        .last_msg_owner = true,
     };
 
     return Socket.SyncBuilder(Pair.Protocol, comptime_feature).init(socket, features);
@@ -115,7 +116,7 @@ pub const tests = struct {
         pipe: {
             const pipe = iter.next();
             try std.testing.expect(pipe != null);
-            try std.testing.expectEqualDeep(Pipe.Features{ .send_first = true, .receive_first = true }, pipe.?.features);
+            try std.testing.expectEqualDeep(Pipe.Features{ .send_first = true, .receive_first = true, .last_msg_owner = true }, pipe.?.features);
             break:pipe;
         }
         pipe: {
