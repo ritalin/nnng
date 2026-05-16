@@ -24,7 +24,7 @@ const ReadyWait = struct {
     }
 
     pub fn wait(self: *ReadyWait) void {
-        const d = std.Io.Duration.fromMicroseconds(10);
+        const d = std.Io.Duration.fromMilliseconds(10);
         self.ev.waitTimeout(self.io, .{ .duration = .{ .raw = d, .clock = .awake } }) catch {};
     }
 
