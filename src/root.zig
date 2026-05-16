@@ -8,6 +8,9 @@ pub const Transport = @import("./socket/Transport.zig");
 pub const Pipe = @import("./socket/Pipe.zig");
 pub const Message = @import("./message/Message.zig");
 
+pub const PipeSender = @import("./message/Sender.zig");
+pub const PipeReceiver = @import("./message/Receiver.zig");
+
 pub const Req = @import("./protocols/Req.zig");
 pub const Rep = @import("./protocols/Rep.zig");
 pub const Push = @import("./protocols/Push.zig");
