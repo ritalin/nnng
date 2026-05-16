@@ -210,8 +210,6 @@ fn doReceive(id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) Poll
     };
 }
 
-
-
 pub const PollEvent = union(enum) {
     ready: ReadyChannel,
     failed: struct {
@@ -219,14 +217,6 @@ pub const PollEvent = union(enum) {
         err: ReceiveError,
     },
 };
-
-pub fn mark_ready() !void {
-    unreachable;
-}
-
-pub fn mark_skip() !void {
-    unreachable;
-}
 
 pub const Timeout = union {
     unlimited: void,
