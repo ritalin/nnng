@@ -23,7 +23,7 @@ pub const PollerPipe = struct {
 
     const Self = @This();
 
-    pub fn wait(self: *Self, channel: *ReadyChannel) ReceiveError!void {
+    pub fn wait(self: *const Self, channel: *ReadyChannel) ReceiveError!void {
         return (self.vtable.on_wait_complete)(self.owner, channel);
     }
 

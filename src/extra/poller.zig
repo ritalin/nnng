@@ -199,8 +199,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
     };
 }
 
-fn doReceive(id: u64, pipe0: poller_impl.PollerPipe, channel: *ReadyChannel) PollEvent {
-    var pipe = pipe0;
+fn doReceive(id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) PollEvent {
     pipe.wait(channel)
     catch |err| return .{
         .failed = .{ .id = id, .err = err },
@@ -211,8 +210,6 @@ fn doReceive(id: u64, pipe0: poller_impl.PollerPipe, channel: *ReadyChannel) Pol
     };
 }
 
-
-
 pub const PollEvent = union(enum) {
     ready: ReadyChannel,
     failed: struct {
@@ -220,14 +217,6 @@ pub const PollEvent = union(enum) {
         err: ReceiveError,
     },
 };
-
-pub fn mark_ready() !void {
-    unreachable;
-}
-
-pub fn mark_skip() !void {
-    unreachable;
-}
 
 pub const Timeout = union {
     unlimited: void,
