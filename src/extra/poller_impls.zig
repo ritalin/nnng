@@ -12,12 +12,13 @@ const Pipe = root.Pipe;
 const Message = root.Message;
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
+const AioPipeError = root.AioPipeError;
 
 pub const PollerPipe = struct {
     owner: *anyopaque,
     vtable: struct {
         on_wait_complete: *const fn (owner: *anyopaque, channel: *ReadyChannel) ReceiveError!void,
-        on_cancel: *const fn (owner: *const anyopaque) void,
+        on_cancel: *const fn (owner: *const anyopaque) AioPipeError!void,
     },
     features: Pipe.Features,
 
@@ -28,7 +29,9 @@ pub const PollerPipe = struct {
     }
 
     pub fn cancel(self: Self) void {
-        (self.vtable.on_cancel)(self.owner);
+        (self.vtable.on_cancel)(self.owner) catch |err| {
+            std.log.err("Poller pipe cancel failed/ err: {s}", .{ @errorName(err) });
+        };
     }
 };
 
@@ -67,9 +70,9 @@ pub const PollerPipeImpl = union(enum) {
             };
         }
 
-        pub fn cancelSession(ptr: *const anyopaque) void {
+        pub fn cancelSession(ptr: *const anyopaque) AioPipeError!void {
             const pipe: *const Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
-            pipe.cancel();
+            return pipe.cancel(.{});
         }
 
         pub fn submitMessage(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {
@@ -129,9 +132,9 @@ pub const PollerPipeImpl = union(enum) {
             };
         }
 
-        pub fn cancelSession(ptr: *const anyopaque) void {
+        pub fn cancelSession(ptr: *const anyopaque) AioPipeError!void {
             const pipe: *const Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
-            pipe.cancel();
+            return pipe.cancel(.{});
         }
 
         pub fn submitMessage(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {

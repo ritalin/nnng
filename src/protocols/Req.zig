@@ -424,4 +424,61 @@ pub const tests = struct {
             break:timeout;
         }
     }
+
+    test "cancel comminication for sync" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var rep_socket: Rep.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Rep.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        // Open REQ socket
+        var req_socket: Req.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Req.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket.transport.start(.{});
+        defer req_socket.close();
+
+        // get pipe
+        var req_pipe = iter: {
+            var iter = req_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+        var rep_pipe = iter: {
+            var iter = rep_socket.pipe.iter();
+            break:iter iter.next() orelse unreachable;
+        };
+
+        var msg = try Message.create();
+        defer msg.deinit();
+
+        send_req: {
+            try msg.writer.writeAll("Hello");
+            try msg.writer.flush();
+            try req_pipe.sender().submit(msg, .{});
+            break:send_req;
+        }
+        reply_rep: {
+            msg = try rep_pipe.receiver().drain(.{});
+            msg.writer.end = 0;
+            try msg.writer.writeAll("World");
+            try msg.writer.flush();
+            try rep_pipe.sender().submit(msg, .{});
+            break:reply_rep;
+        }
+        cancel_rec: {
+            try req_pipe.cancel(.{});
+            break:cancel_rec;
+        }
+    }
 };
