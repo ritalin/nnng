@@ -48,7 +48,7 @@ pub const ReceiveError = (
     CloseError || InvalidError || std.mem.Allocator.Error
 );
 
-pub const OpenAioPipeError = FeatureError || std.mem.Allocator.Error;
+pub const AioPipeError = (error { Canceled, Timeout }) || FeatureError || std.mem.Allocator.Error;
 
 pub const OptionError = (
     error {

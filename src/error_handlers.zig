@@ -73,12 +73,18 @@ pub fn start_transport_error(err: c_int) root.StartTransportError {
     unreachable;
 }
 
-pub fn open_aio_pipe_error(err: c_int) root.OpenAioPipeError {
+pub fn aio_pipe_error(err: c_int) root.AioPipeError {
     if (err == c.NNG_ENOMEM) {
         return error.OutOfMemory;
     }
     if (err == c.NNG_ENOTSUP) {
         return error.NotSupported;
+    }
+    if (err == c.NNG_ECANCELED) {
+        return error.Canceled;
+    }
+    if (err == c.NNG_ETIMEDOUT) {
+        return error.Timeout;
     }
     std.log.err("open_aio_pipe_error/unhandled code: {}", .{err});
     unreachable;

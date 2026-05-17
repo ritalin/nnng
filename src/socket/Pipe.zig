@@ -17,7 +17,7 @@ const AioSlot = @import("../message/message_impl.zig").AioSlot;
 
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
-const OpenAioPipeError = root.OpenAioPipeError;
+const AioPipeError = root.AioPipeError;
 
 const Feature = enum {
     send_first,
@@ -64,11 +64,11 @@ pub const Sync = struct {
         aio_slot: AioSlot,
 
         // Internal
-        pub fn create(socket: Socket, features: Features) OpenAioPipeError!Item {
+        pub fn create(socket: Socket, features: Features) AioPipeError!Item {
             var raw_aio: ?*c.nng_aio = null;
             const err = c.nng_aio_alloc(&raw_aio, null, null);
             if (err != 0) {
-                return errors.open_aio_pipe_error(@intCast(err));
+                return errors.aio_pipe_error(@intCast(err));
             }
 
             return .{
@@ -102,8 +102,18 @@ pub const Sync = struct {
         }
 
         // Cancel current session
-        pub fn cancel(self: *const @This()) void {
+        pub fn cancel(self: *const @This(), options: CancelOptions) AioPipeError!void {
             c.nng_aio_cancel(self.aio_slot.raw_aio);
+
+            if (!options.nonblocking) {
+                c.nng_aio_wait(self.aio_slot.raw_aio);
+            }
+
+            const err = c.nng_aio_result(self.aio_slot.raw_aio);
+            if (err == 0) return;
+            if (err == c.NNG_ECANCELED) return;
+
+            return errors.aio_pipe_error(err);
         }
     };
 
@@ -185,12 +195,12 @@ pub const Parallel = struct {
 
         const State = enum { send, receive };
 
-        pub fn create(socket: Socket, features: Features) OpenAioPipeError!@This() {
+        pub fn create(socket: Socket, features: Features) AioPipeError!@This() {
             const raw_ctx = open: {
                 var raw_ctx: c.nng_ctx = undefined;
                 const err = c.nng_ctx_open(&raw_ctx, socket.raw_socket);
                 if (err != 0) {
-                    return errors.open_aio_pipe_error(err);
+                    return errors.aio_pipe_error(err);
                 }
                 break:open raw_ctx;
             };
@@ -200,7 +210,7 @@ pub const Parallel = struct {
                 const err = c.nng_aio_alloc(&raw_aio, null, null);
                 if (err != 0) {
                     defer _ = c.nng_ctx_close(raw_ctx);
-                    return errors.open_aio_pipe_error(@intCast(err));
+                    return errors.aio_pipe_error(@intCast(err));
                 }
                 break:open raw_aio;
             };
@@ -237,8 +247,26 @@ pub const Parallel = struct {
         }
 
         // Cancel current session
-        pub fn cancel(self: *const @This()) void {
+        pub fn cancel(self: *const @This(), options: CancelOptions) AioPipeError!void {
             c.nng_aio_cancel(self.aio_slot.raw_aio);
+
+            if (!options.nonblocking) {
+                c.nng_aio_wait(self.aio_slot.raw_aio);
+            }
+
+            const err = c.nng_aio_result(self.aio_slot.raw_aio);
+            if (err == 0) return;
+            if (err == c.NNG_ECANCELED) return;
+
+            return errors.aio_pipe_error(err);
         }
     };
 };
+
+pub const CancelOption = enum {
+    /// If true, the operation does not block.
+    nonblocking
+};
+
+/// Options for cancel operations.
+pub const CancelOptions = std.enums.EnumFieldStruct(CancelOption, bool, false);
