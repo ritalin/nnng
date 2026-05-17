@@ -81,6 +81,7 @@ pub const Sync = struct {
 
         // Internal
         pub fn deinit(self: *@This()) void {
+            c.nng_aio_stop(self.aio_slot.raw_aio);
             c.nng_aio_free(self.aio_slot.raw_aio);
         }
 
