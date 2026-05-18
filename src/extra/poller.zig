@@ -70,17 +70,21 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
             std.debug.assert(self.ready_set.count() == 0);
 
-            var wakeups: [buffer_size]WakeupResult = undefined;
+            var wakeups: [buffer_size]PollWakeupResult = undefined;
             const count = try self.tasks.poll(&wakeups);
 
-            for (wakeups[0..count]) |result| {
-                if (std.meta.activeTag(result.event) == .ready) {
+            var results: [buffer_size]PollEvent = undefined;
+
+            for (0..count) |w| {
+                results[w] = wakeups[w].event;
+
+                if (std.meta.activeTag(wakeups[w].event) == .ready) {
                     // reset in-fight set (ready channel only)
-                    _ = self.in_fight_set.remove(result.event.ready.id);
+                    _ = self.in_fight_set.remove(wakeups[w].event.ready.id);
 
                     // ready pipe
-                    if (result.event.ready.features.receive_first) {
-                        try self.ready_set.put(result.event.ready.id, {});
+                    if (wakeups[w].event.ready.features.receive_first) {
+                        try self.ready_set.put(wakeups[w].event.ready.id, {});
                     }
                 }
             }
@@ -91,7 +95,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                 try self.ready_set.put(id.*, {});
             }
 
-            try callback(self, wakeups[0..count]);
+            try callback(self, results[0..count]);
 
             return count;
         }
@@ -161,24 +165,24 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             }
         };
 
-        pub const WakeupResult = union {
+        const PollWakeupResult = union {
             event: PollEvent,
         };
 
-        pub const WakeupCallback = *const fn (poller: *Poller, channels: []const Poller.WakeupResult) anyerror!void;
+        pub const WakeupCallback = *const fn (poller: *Poller, channels: []const PollEvent) anyerror!void;
 
         //
         // Internal implementations
         //
 
        const PollerTaskImpl = struct {
-           select: std.Io.Select(WakeupResult),
-           select_buffer: [buffer_size]WakeupResult = undefined,
+           select: std.Io.Select(PollWakeupResult),
+           select_buffer: [buffer_size]PollWakeupResult = undefined,
 
            fn init(context: Context) !*PollerTaskImpl {
                var self = try context.allocator.create(PollerTaskImpl);
                self.* = .{
-                   .select = std.Io.Select(WakeupResult).init(context.io, &self.select_buffer),
+                   .select = std.Io.Select(PollWakeupResult).init(context.io, &self.select_buffer),
                };
 
                return self;
@@ -192,7 +196,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                self.select.async(.event, doReceive, .{ id, pipe, channel });
            }
 
-           fn poll(self: *PollerTaskImpl, wakeups: []WakeupResult) !usize {
+           fn poll(self: *PollerTaskImpl, wakeups: []PollWakeupResult) !usize {
                return self.select.awaitMany(wakeups, 1);
            }
        };
@@ -438,7 +442,7 @@ pub const tests = struct {
         defer poller.deinit();
 
         const PollCallback = struct {
-            pub fn replyMsg(p: *TestPoller, results: []const TestPoller.WakeupResult) anyerror!void {
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
                 try std.testing.expectEqual(0, p.skip_set.count());
                 try std.testing.expectEqual(1, p.ready_set.count());
                 try std.testing.expectEqual(0, p.in_fight_set.count());
@@ -446,8 +450,7 @@ pub const tests = struct {
                 try std.testing.expectEqual(p.ready_set.count(), results.len);
                 reply: {
                     for (results) |result| {
-                        const event = result.event;
-                        switch (event) {
+                        switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
                                 var msg = try channel.receiver().drain(.{});
@@ -532,7 +535,7 @@ pub const tests = struct {
         }
 
         const PollCallback = struct {
-            pub fn replyMsg(p: *TestPoller, results: []const TestPoller.WakeupResult) anyerror!void {
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
                 try std.testing.expectEqual(0, p.skip_set.count());
                 try std.testing.expectEqual(3, p.ready_set.count() + p.in_fight_set.count());
 
@@ -554,8 +557,7 @@ pub const tests = struct {
                 try std.testing.expectEqual(p.ready_set.count(), results.len);
                 reply: {
                     for (results) |result| {
-                        const event = result.event;
-                        switch (event) {
+                        switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
                                 var msg = try channel.receiver().drain(.{});

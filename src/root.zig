@@ -11,6 +11,7 @@ pub const Message = @import("./message/Message.zig");
 pub const PipeSender = @import("./message/Sender.zig");
 pub const PipeReceiver = @import("./message/Receiver.zig");
 
+// protocols
 pub const Req = @import("./protocols/Req.zig");
 pub const Rep = @import("./protocols/Rep.zig");
 pub const Push = @import("./protocols/Push.zig");
@@ -20,8 +21,11 @@ pub const Sub = @import("./protocols/Sub.zig");
 pub const Pair = @import("./protocols/Pair.zig");
 
 // extras
-pub const ReceivePoller = @import("./extra/poller.zig").ReceivePoller;
+const poller = @import("./extra/poller.zig");
+pub const ReceivePoller = poller.ReceivePoller;
+pub const PollEvent = poller.PollEvent;
 
+// errors
 pub const InitializeError = error { AlreadyInited };
 pub const FeatureError = error { NotSupported };
 pub const OpenError = std.mem.Allocator.Error || FeatureError;
