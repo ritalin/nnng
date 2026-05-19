@@ -266,11 +266,11 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
 
         const View = @This();
 
-        pub fn enableWidlcard(view: *View) !void {
+        pub fn enableWildcard(view: *View) !void {
             try view.subscribe("");
         }
 
-        pub fn disableWidlcard(view: *View) !void {
+        pub fn disableWildcard(view: *View) !void {
             try view.unsubscribe("");
         }
 
@@ -322,11 +322,11 @@ pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
 
         const View = @This();
 
-        pub fn enableWidlcard(view: *View) !void {
+        pub fn enableWildcard(view: *View) !void {
             try view.subscribe("");
         }
 
-        pub fn disableWidlcard(view: *View) !void {
+        pub fn disableWildcard(view: *View) !void {
             try view.unsubscribe("");
         }
 
@@ -401,7 +401,7 @@ pub const global_subscription = struct {
         var view = socket.subscriptionView();
 
         subscription: {
-            try view.enableWidlcard();
+            try view.enableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
             try view.extractSubscriptions(std.testing.allocator, &subscriptions);
@@ -446,7 +446,7 @@ pub const global_subscription = struct {
             break:unsubscribe;
         }
         unsubscribe: {
-            try view.disableWidlcard();
+            try view.disableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
             try view.extractSubscriptions(std.testing.allocator, &subscriptions);
@@ -481,7 +481,7 @@ pub const global_subscription = struct {
 
         var view = socket.subscriptionView();
         subscription: {
-            try view.enableWidlcard();
+            try view.enableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
             try view.extractSubscriptions(std.testing.allocator, &subscriptions);
@@ -526,7 +526,7 @@ pub const global_subscription = struct {
             break:unsubscribe;
         }
         unsubscribe: {
-            try view.disableWidlcard();
+            try view.disableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
             try view.extractSubscriptions(std.testing.allocator, &subscriptions);
@@ -553,11 +553,11 @@ pub fn ParallelSubscriptionItemView(comptime TTransport: type) type {
 
         const View = @This();
 
-        pub fn enableWidlcard(view: *View) !void {
+        pub fn enableWildcard(view: *View) !void {
             try view.subscribe("");
         }
 
-        pub fn disableWidlcard(view: *View) !void {
+        pub fn disableWildcard(view: *View) !void {
             try view.unsubscribe("");
         }
 
@@ -624,7 +624,7 @@ pub const pipe_subscription = struct {
         var sub_view = view.lane_at(1);
 
         subscription: {
-            try sub_view.enableWidlcard();
+            try sub_view.enableWildcard();
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
@@ -724,7 +724,7 @@ pub const pipe_subscription = struct {
             break:unsubscribe;
         }
         unsubscribe: {
-            try sub_view.disableWidlcard();
+            try sub_view.disableWildcard();
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
@@ -783,7 +783,7 @@ pub const pipe_subscription = struct {
         var sub_view = view.lane_at(1);
 
         subscription: {
-            try sub_view.enableWidlcard();
+            try sub_view.enableWildcard();
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
@@ -883,7 +883,7 @@ pub const pipe_subscription = struct {
             break:unsubscribe;
         }
         unsubscribe: {
-            try sub_view.disableWidlcard();
+            try sub_view.disableWildcard();
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
