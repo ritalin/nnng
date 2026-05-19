@@ -209,7 +209,7 @@ pub const tests = struct {
         };
 
         var view = sub_socket.subscriptionView();
-        try view.enableWidlcard();
+        try view.enableWildcard();
 
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
@@ -372,7 +372,7 @@ pub const tests = struct {
         };
 
         var view = sub_socket.subscriptionView();
-        try view.enableWidlcard();
+        try view.enableWildcard();
         try view.subscribe("greeting");
 
         try sub_socket.transport.start(.{});
@@ -483,7 +483,7 @@ pub const tests = struct {
         };
 
         var view = sub_socket.subscriptionView().lane_at(1);
-        try view.enableWidlcard();
+        try view.enableWildcard();
 
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
