@@ -71,8 +71,8 @@ pub fn Protocol(comptime TTransport: type, comptime TPipe: type) type {
 
         /// Manage topic subscription.
         pub fn subscriptionView(self: *Self)
-            if (TPipe == Pipe.Sync) GlobalSyncSubscriptionView(TTransport)
-            else GlobalParallelSubscriptionView(TTransport)
+            if (TPipe == Pipe.Sync) SyncSocketSubscriptionView(TTransport)
+            else ParallelSocketSubscriptionView(TTransport)
         {
             return .{
                 .protocol = self,
@@ -188,12 +188,50 @@ const Interner = struct {
 };
 
 const FilterSet = struct {
+    pipe_index: usize,
     socket: u64,
     pipe: u64,
 };
 
-fn indexOfFilterId(filter_ids: []const u64, id: u64) ?usize {
-    return std.mem.findScalar(u64, filter_ids, id);
+const FilterSetNeedle = struct {
+    intern: u64,
+    pipe_index: ?usize,
+};
+
+const FilterSetRevIterator = struct {
+    slice: []const u64,
+    needle: FilterSetNeedle,
+    index: usize,
+
+    pub fn init(slice: []const u64, needle: FilterSetNeedle) @This() {
+        return .{
+            .slice = slice,
+            .needle = needle,
+            .index = slice.len,
+        };
+    }
+
+    pub fn next(self: *@This()) ?usize {
+        while (self.index > 0) {
+            self.index -= 1;
+            if (self.slice[self.index] == self.needle.intern) {
+                return self.index;
+            }
+        }
+
+        return null;
+    }
+};
+
+fn indexOfFilter(pipe_indices: []const usize, interns: []const u64, needle: FilterSetNeedle) ?usize {
+    for (pipe_indices, interns, 0..) |pipe_index, intern, i| {
+        if (intern != needle.intern) continue;
+        if (needle.pipe_index) |index| {
+            if (pipe_index != index) continue;
+        }
+        return i;
+    }
+    return null;
 }
 
 fn subscriptionIds(filters: std.MultiArrayList(FilterSet).Slice, comptime fields: []const @EnumLiteral(), ids: []bool) void {
@@ -260,7 +298,7 @@ pub const intern_test = struct {
     }
 };
 
-pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
+pub fn SyncSocketSubscriptionView(comptime TTransport: type) type {
     return struct {
         protocol: *Sub.Protocol(TTransport, Pipe.Sync),
 
@@ -276,10 +314,13 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
 
         pub fn subscribe(view:* View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id) == null) {
-                try view.protocol.topic_ids.append(allocator, .{ .socket = id, .pipe = 0 });
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+            const interns: []const u64 = view.protocol.topic_ids.items(.socket);
+
+            if (indexOfFilter(pipe_indices, interns, .{ .intern = intern, .pipe_index = null }) == null) {
+                try view.protocol.topic_ids.append(allocator, .{ .pipe_index = 0, .socket = intern, .pipe = 0 });
                 _ = c.nng_sub0_socket_subscribe(view.protocol.pipe.item.socket.raw_socket, topic.ptr, topic.len);
             }
         }
@@ -292,9 +333,12 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
 
         pub fn unsubscribe(view: *View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id)) |index| {
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+            const interns: []const u64 = view.protocol.topic_ids.items(.socket);
+
+            if (indexOfFilter(pipe_indices, interns, .{ .intern = intern, .pipe_index = null })) |index| {
                 view.protocol.topic_ids.orderedRemove(index);
                 _ = c.nng_sub0_socket_unsubscribe(view.protocol.pipe.item.socket.raw_socket, topic.ptr, topic.len);
             }
@@ -316,7 +360,7 @@ pub fn GlobalSyncSubscriptionView(comptime TTransport: type) type {
     };
 }
 
-pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
+pub fn ParallelSocketSubscriptionView(comptime TTransport: type) type {
     return struct {
         protocol: *Sub.Protocol(TTransport, Pipe.Parallel),
 
@@ -332,11 +376,16 @@ pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
 
         pub fn subscribe(view:* View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id) == null) {
-                try view.protocol.topic_ids.append(allocator, .{ .socket = id, .pipe = 0 });
-                _ = c.nng_sub0_socket_subscribe(view.protocol.pipe.socket.raw_socket, topic.ptr, topic.len);
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+            const interns: []const u64 = view.protocol.topic_ids.items(.socket);
+
+            if (indexOfFilter(pipe_indices, interns, .{ .intern = intern, .pipe_index = null }) == null) {
+                for (view.protocol.pipe.items, 0..) |pipe, i| {
+                    try view.protocol.topic_ids.append(allocator, .{ .pipe_index = i, .socket = intern, .pipe = 0 });
+                    _ = c.nng_sub0_ctx_subscribe(pipe.raw_ctx, topic.ptr, topic.len);
+                }
             }
         }
 
@@ -348,11 +397,23 @@ pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
 
         pub fn unsubscribe(view: *View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.socket), id)) |index| {
+            const topic_interns: []const u64 = view.protocol.topic_ids.items(.socket);
+            const pipe_interns: []const u64 = view.protocol.topic_ids.items(.pipe);
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+
+            var iter = FilterSetRevIterator.init(topic_interns, .{ .intern = intern, .pipe_index = null });
+
+            while (iter.next()) |index| {
                 view.protocol.topic_ids.orderedRemove(index);
-                _ = c.nng_sub0_socket_unsubscribe(view.protocol.pipe.socket.raw_socket, topic.ptr, topic.len);
+            }
+
+            for (0..view.protocol.pipe.items.len) |i| {
+                if (indexOfFilter(pipe_indices, pipe_interns, .{ .intern = intern, .pipe_index = i }) == null) {
+                    const pipe = view.protocol.pipe.items[i];
+                    _ = c.nng_sub0_ctx_unsubscribe(pipe.raw_ctx, topic.ptr, topic.len);
+                }
             }
         }
 
@@ -362,7 +423,7 @@ pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
             }
         }
 
-        pub fn extractSubscriptions(view: *View, allocator: std.mem.Allocator, buf: *std.ArrayList([]const u8)) !void {
+        pub fn extractScopeSubscriptions(view: *View, allocator: std.mem.Allocator, buf: *std.ArrayList([]const u8)) !void {
             const dedupe_ids = try allocator.alloc(bool, view.protocol.interner.count() + 1);
             defer allocator.free(dedupe_ids);
 
@@ -370,12 +431,12 @@ pub fn GlobalParallelSubscriptionView(comptime TTransport: type) type {
             try view.protocol.interner.projection(allocator, dedupe_ids, buf);
         }
 
-        pub fn lane_at(view: View, index: usize) ParallelSubscriptionItemView(TTransport) {
+        pub fn lane_at(view: View, index: usize) ParallelPipeSubscriptionView(TTransport) {
             std.debug.assert(index < view.protocol.pipe.items.len);
 
             return .{
                 .protocol = view.protocol,
-                .item = view.protocol.pipe.items[index],
+                .index = index,
             };
         }
     };
@@ -484,7 +545,7 @@ pub const global_subscription = struct {
             try view.enableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "" }, subscriptions.items);
             break:subscription;
@@ -493,7 +554,7 @@ pub const global_subscription = struct {
             try view.subscribe("qwerty");
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "", "qwerty" }, subscriptions.items);
             break:subscription;
@@ -502,7 +563,7 @@ pub const global_subscription = struct {
             try view.subscribeMany(&.{ "abc", "def" });
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "", "qwerty", "abc", "def" }, subscriptions.items);
             break:subscription;
@@ -511,7 +572,7 @@ pub const global_subscription = struct {
             try view.subscribe("qwerty");
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "", "qwerty", "abc", "def" }, subscriptions.items);
             break:subscription;
@@ -520,7 +581,7 @@ pub const global_subscription = struct {
             try view.unsubscribe("abc");
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "", "qwerty", "def" }, subscriptions.items);
             break:unsubscribe;
@@ -529,7 +590,7 @@ pub const global_subscription = struct {
             try view.disableWildcard();
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty", "def" }, subscriptions.items);
             break:unsubscribe;
@@ -538,7 +599,7 @@ pub const global_subscription = struct {
             try view.unsubscribeMany(&.{ "def", "qwerty",  });
             var subscriptions: std.ArrayList([]const u8) = .empty;
             defer subscriptions.deinit(std.testing.allocator);
-            try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+            try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
             try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
             break:unsubscribe;
@@ -546,10 +607,10 @@ pub const global_subscription = struct {
     }
 };
 
-pub fn ParallelSubscriptionItemView(comptime TTransport: type) type {
+pub fn ParallelPipeSubscriptionView(comptime TTransport: type) type {
     return struct {
         protocol: *Sub.Protocol(TTransport, Pipe.Parallel),
-        item: Pipe.Parallel.Item,
+        index: usize,
 
         const View = @This();
 
@@ -563,11 +624,14 @@ pub fn ParallelSubscriptionItemView(comptime TTransport: type) type {
 
         pub fn subscribe(view:* View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.pipe), id) == null) {
-                try view.protocol.topic_ids.append(allocator, .{ .socket = 0, .pipe = id });
-                _ = c.nng_sub0_ctx_subscribe(view.item.raw_ctx, topic.ptr, topic.len);
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+            const interns: []const u64 = view.protocol.topic_ids.items(.pipe);
+
+            if (indexOfFilter(pipe_indices, interns, .{ .intern = intern, .pipe_index = view.index }) == null) {
+                try view.protocol.topic_ids.append(allocator, .{ .pipe_index = view.index, .socket = 0, .pipe = intern });
+                _ = c.nng_sub0_ctx_subscribe(view.protocol.pipe.items[view.index].raw_ctx, topic.ptr, topic.len);
             }
         }
 
@@ -579,11 +643,14 @@ pub fn ParallelSubscriptionItemView(comptime TTransport: type) type {
 
         pub fn unsubscribe(view: *View, topic: []const u8) !void {
             const allocator = view.protocol.transport.socket.context.allocator;
-            const id = try view.protocol.interner.intern(allocator, topic);
+            const intern = try view.protocol.interner.intern(allocator, topic);
 
-            if (indexOfFilterId(view.protocol.topic_ids.items(.pipe), id)) |index| {
+            const pipe_indices: []const usize = view.protocol.topic_ids.items(.pipe_index);
+            const interns: []const u64 = view.protocol.topic_ids.items(.pipe);
+
+            if (indexOfFilter(pipe_indices, interns, .{ .intern = intern, .pipe_index = view.index })) |index| {
                 view.protocol.topic_ids.orderedRemove(index);
-                _ = c.nng_sub0_ctx_unsubscribe(view.item.raw_ctx, topic.ptr, topic.len);
+                _ = c.nng_sub0_ctx_unsubscribe(view.protocol.pipe.items[view.index].raw_ctx, topic.ptr, topic.len);
             }
         }
 
@@ -591,6 +658,14 @@ pub fn ParallelSubscriptionItemView(comptime TTransport: type) type {
             for (topics) |topic| {
                 try view.unsubscribe(topic);
             }
+        }
+
+        pub fn extractScopeSubscriptions(view: *View, allocator: std.mem.Allocator, buf: *std.ArrayList([]const u8)) !void {
+            const dedupe_ids = try allocator.alloc(bool, view.protocol.interner.count() + 1);
+            defer allocator.free(dedupe_ids);
+
+            subscriptionIds(view.protocol.topic_ids.slice(), &[_]@EnumLiteral(){ .pipe }, dedupe_ids);
+            try view.protocol.interner.projection(allocator, dedupe_ids, buf);
         }
 
         pub fn extractSubscriptions(view: *View, allocator: std.mem.Allocator, buf: *std.ArrayList([]const u8)) !void {
@@ -628,7 +703,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -648,7 +723,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -668,7 +743,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -688,7 +763,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -708,7 +783,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -728,7 +803,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -748,7 +823,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -787,7 +862,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
@@ -807,7 +882,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty" }, subscriptions.items);
                 break:socket;
@@ -827,7 +902,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty", "abc", "def" }, subscriptions.items);
                 break:socket;
@@ -847,7 +922,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty", "abc", "def" }, subscriptions.items);
                 break:socket;
@@ -867,7 +942,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty", "abc" }, subscriptions.items);
                 break:socket;
@@ -887,7 +962,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{ "qwerty", "abc" }, subscriptions.items);
                 break:socket;
@@ -907,7 +982,7 @@ pub const pipe_subscription = struct {
             socket: {
                 var subscriptions: std.ArrayList([]const u8) = .empty;
                 defer subscriptions.deinit(std.testing.allocator);
-                try view.extractSubscriptions(std.testing.allocator, &subscriptions);
+                try view.extractScopeSubscriptions(std.testing.allocator, &subscriptions);
 
                 try std.testing.expectEqualDeep(&[_][]const u8{}, subscriptions.items);
                 break:socket;
