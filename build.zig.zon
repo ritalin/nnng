@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .set_version = .{
-            .url = "git+https://github.com/ritalin/zig-set-version.git#cfe4fcf0d131a0db829f34e004896aaa7f093371",
-            .hash = "zig_set_version-0.3.0-VcSFV5pjAAD05typBYB830IiYXkM2SfER2VZfqgnAlEH",
+            .url = "git+https://github.com/ritalin/zig-set-version.git#1f3cd71ee0867b1f56c7ae421feddad4f85a55ff",
+            .hash = "zig_set_version-0.4.0-VcSFV3xkAAD0iesHfDhPukAR87ncMWYHeYkUe3ZRRoi1",
         },
     },
     .paths = .{
