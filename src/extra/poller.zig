@@ -55,6 +55,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             const channels = try self.context.allocator.alloc(ReadyChannel, self.ready_set.count());
             defer self.context.allocator.free(channels);
 
+            const cpus = try std.Thread.getCpuCount();
             var i: usize = 0;
             while (ready_iter.next()) |id| {
                 if (self.in_fight_set.contains(id.*)) continue;
@@ -62,7 +63,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
                 if (self.poller_pipes.get(id.*)) |pipe| {
                     try self.in_fight_set.put(id.*, {});
-                    self.tasks.attach(id.*, pipe, &channels[i]);
+                    try self.tasks.attach(id.*, pipe, &channels[i], self.in_fight_set.count() > cpus - 1);
                     i += 1;
                 }
             }
@@ -192,8 +193,13 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                allocator.destroy(self);
            }
 
-           fn attach(self: *PollerTaskImpl, id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) void {
-               self.select.async(.event, doReceive, .{ id, pipe, channel });
+           fn attach(self: *PollerTaskImpl, id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel, need_concurrent: bool) !void {
+               if (need_concurrent) {
+                   try self.select.concurrent(.event, doReceive, .{ id, pipe, channel });
+               }
+               else {
+                   self.select.async(.event, doReceive, .{ id, pipe, channel });
+               }
            }
 
            fn poll(self: *PollerTaskImpl, wakeups: []PollWakeupResult) !usize {
@@ -597,11 +603,81 @@ pub const tests = struct {
         }
     }
 
-    test "cance receive on poller" {
+    test "receive msg from poller with parallel pipe (over logical CPUs)" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
 
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+        const cpus = try std.Thread.getCpuCount();
+
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.Rep.open(ctx);
+            break:socket try b.parallel(cpus * 2).as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        // Open REQ socket
+        var req_socket1 = socket: {
+            var b = try root.Req.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket1.transport.start(.{});
+        defer req_socket1.close();
+
+        send_msg: {
+            var msg = try Message.create();
+            try msg.writer.writeAll("Hello World");
+            try msg.writer.flush();
+            try req_socket1.pipe.item.sender().submit(msg, .{});
+            break:send_msg;
+        }
+
+        const PollCallback = struct {
+            poller: TestPoller,
+            tasks: usize,
+            called: bool = false,
+
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
+                const self: *@This() = @fieldParentPtr("poller", p);
+
+                try std.testing.expectEqual(0, p.skip_set.count());
+                try std.testing.expectEqual(self.tasks, p.ready_set.count() + p.in_fight_set.count());
+
+                try std.testing.expectEqual(1, results.len);
+                try std.testing.expectEqual(.ready, std.meta.activeTag(results[0]));
+
+                var msg = try results[0].ready.receiver().drain(.{});
+                try std.testing.expectEqualStrings("Hello World", msg.bytes());
+
+                try msg.writer.writeAll("!!");
+                try msg.writer.flush();
+                try results[0].ready.sender().submit(msg, .{});
+                self.called = true;
+            }
+        };
+
+        var cb: PollCallback = .{ .poller = try TestPoller.create(ctx), .tasks = cpus * 2 };
+        defer cb.poller.deinit();
+
+        try TestPoller.Parallel.attach(&cb.poller, &rep_socket.pipe);
+        try std.testing.expectEqual(cpus * 2, cb.poller.poller_pipes.count());
+        try std.testing.expectEqual(cpus * 2, cb.poller.ready_set.count());
+        try std.testing.expectEqual(0, cb.poller.in_fight_set.count());
+
+        const n = try cb.poller.poll(PollCallback.replyMsg);
+        try std.testing.expectEqual(1, n);
+        try std.testing.expectEqual(true, cb.called);
+
+        var msg = try req_socket1.pipe.item.receiver().drain(.{});
+        defer msg.deinit();
+        try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
 
-    test "terminate poller" {
+    test "cance receive on poller" {
 
     }
 };
