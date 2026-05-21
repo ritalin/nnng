@@ -99,7 +99,7 @@ const PollerCallback = struct {
     pub fn handleMessage(poller: *Poller, results: []const Poller.WakeupResult) anyerror!void {
         if (results.len == 0) return;
 
-        var self: *Self = @fieldParentPtr("poller", poller);
+        var self: *Self = @alignCast(@fieldParentPtr("poller", poller));
 
         if (std.meta.activeTag(results[0].event) == .ready) {
             const channel = results[0].event.ready;
