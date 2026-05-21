@@ -64,7 +64,7 @@ pub fn fromRaw(raw_msg: *c.nng_msg) Self {
         .writer = .{
             .vtable = &vtbl,
             .buffer = buffer,
-            .end = end,
+            .end = 0,
         },
     };
 }
@@ -92,7 +92,7 @@ pub fn bytes(self: Self) []const u8 {
 
 const Impl = struct {
     fn drainInternal(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
-        const self: *Self = @fieldParentPtr("writer", w);
+        const self: *Self = @alignCast(@fieldParentPtr("writer", w));
 
         const cap = c.nng_msg_capacity(self.raw_msg);
         var req_size: usize = 0;
@@ -116,7 +116,7 @@ const Impl = struct {
     }
 
     fn flushInternal(w: *std.Io.Writer) std.Io.Writer.Error!void {
-        const self: *Self = @fieldParentPtr("writer", w);
+        const self: *Self = @alignCast(@fieldParentPtr("writer", w));
 
         std.log.debug("Flush msg/len: {}, end: {}", .{ self.len(), w.end });
 

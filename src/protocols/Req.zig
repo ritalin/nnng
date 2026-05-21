@@ -242,7 +242,6 @@ pub const tests = struct {
         //
 
         // REP (send)
-        msg.writer.end = 0;
         try msg.writer.print("{s}{s}", .{ v1, v1 });
         try msg.writer.flush();
         try rep_pipe.sender().submit(msg, .{});
@@ -335,7 +334,6 @@ pub const tests = struct {
                 const v1 = try std.testing.allocator.dupe(u8, msg.bytes());
                 defer std.testing.allocator.free(v1);
 
-                msg.writer.end = 0;
                 try msg.writer.print("Fizz{s}", .{v1});
                 try msg.writer.flush();
                 try p.sender().submit(msg, .{});
@@ -470,7 +468,6 @@ pub const tests = struct {
         }
         reply_rep: {
             msg = try rep_pipe.receiver().drain(.{});
-            msg.writer.end = 0;
             try msg.writer.writeAll("World");
             try msg.writer.flush();
             try rep_pipe.sender().submit(msg, .{});
@@ -525,7 +522,6 @@ pub const tests = struct {
         reply_rep: {
             for (0..2) |_| {
                 var msg = try rep_pipe.receiver().drain(.{});
-                msg.writer.end = 0;
                 try msg.writer.writeAll("World");
                 try msg.writer.flush();
                 try rep_pipe.sender().submit(msg, .{});

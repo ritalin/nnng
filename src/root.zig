@@ -24,6 +24,7 @@ pub const Pair = @import("./protocols/Pair.zig");
 const poller = @import("./extra/poller.zig");
 pub const ReceivePoller = poller.ReceivePoller;
 pub const PollEvent = poller.PollEvent;
+pub const Rpc = @import("./extra/Rpc.zig");
 
 // errors
 pub const InitializeError = error { AlreadyInited };
