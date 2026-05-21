@@ -460,6 +460,7 @@ pub const tests = struct {
                             .failed => |x| return x.err,
                             .ready => |channel| {
                                 var msg = try channel.receiver().drain(.{});
+                                msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
                                 try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
@@ -567,6 +568,7 @@ pub const tests = struct {
                             .failed => |x| return x.err,
                             .ready => |channel| {
                                 var msg = try channel.receiver().drain(.{});
+                                msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
                                 try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
@@ -653,6 +655,7 @@ pub const tests = struct {
                 var msg = try results[0].ready.receiver().drain(.{});
                 try std.testing.expectEqualStrings("Hello World", msg.bytes());
 
+                msg.writer.advance(msg.len());
                 try msg.writer.writeAll("!!");
                 try msg.writer.flush();
                 try results[0].ready.sender().submit(msg, .{});

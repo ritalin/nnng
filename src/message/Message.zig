@@ -64,7 +64,7 @@ pub fn fromRaw(raw_msg: *c.nng_msg) Self {
         .writer = .{
             .vtable = &vtbl,
             .buffer = buffer,
-            .end = end,
+            .end = 0,
         },
     };
 }
