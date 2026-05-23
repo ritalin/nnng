@@ -1,3 +1,13 @@
+///! Parallel SUB subscriptions are designed for logical subscription
+///! separation, not message distribution.
+///!
+///! Each subscription may maintain its own filter set while sharing
+///! the same underlying connection resources.
+///!
+///! Note:
+///! Subscriptions using the same filter are not load-balanced.
+///! The same published message may be delivered to multiple subscriptions.
+
 const std = @import("std");
 const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
