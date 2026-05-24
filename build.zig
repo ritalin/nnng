@@ -37,7 +37,8 @@ pub fn build(b: *std.Build) void {
 
     // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
-
+    run_mod_tests.has_side_effects = true;
+    
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&b.addInstallArtifact(mod_tests, .{.dest_sub_path = "../test/libnnng"}).step);
