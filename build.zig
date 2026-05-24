@@ -40,5 +40,5 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
-
+    test_step.dependOn(&b.addInstallArtifact(mod_tests, .{.dest_sub_path = "../test/libnnng"}).step);
 }
