@@ -69,6 +69,9 @@ pub fn start_transport_error(err: c_int) root.StartTransportError {
     if (err == c.NNG_EADDRINUSE) {
         return error.AddressInUse;
     }
+    if (err == c.NNG_ETIMEDOUT) {
+        return error.Timeout;
+    }
     std.log.err("start_transport_error/unhandled code: {}", .{err});
     unreachable;
 }
