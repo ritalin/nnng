@@ -226,7 +226,6 @@ pub const Parallel = struct {
 
         pub fn deinit(self: *@This()) void {
             _ = c.nng_aio_free(self.aio_slot.raw_aio);
-            _ = c.nng_ctx_close(self.raw_ctx);
             self.* = undefined;
         }
 

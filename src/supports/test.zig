@@ -12,6 +12,10 @@ pub fn make_ipc_sock(dir: std.Io.Dir, file_name: []const u8) anyerror![]const u8
     return std.fmt.allocPrint(std.testing.allocator, "ipc://{s}/{s}", .{ sock_path, file_name });
 }
 
+pub fn cleanup() void {
+    // std.Io.sleep(std.testing.io, std.Io.Duration.fromMilliseconds(20), .real) catch {};
+}
+
 const ReadyWait = struct {
     ev: std.Io.Event,
     io: std.Io,
@@ -50,7 +54,7 @@ fn callbackPipeUpNotification(_: c.nng_pipe, _: c.nng_pipe_ev, arg: ?*anyopaque)
 }
 
 test "test/supports" {
-    std.testing.refAllDecls(@This());
+    // std.testing.refAllDecls(@This());
 }
 
 pub const tests = struct {

@@ -45,10 +45,6 @@ pub const Listener = struct {
 
     /// Internal. Called by protocol close().
     pub fn deinit(self: Self) void {
-        const err = c.nng_listener_close(self.raw_listener);
-        if (err != 0) {
-            std.log.warn("Listener is already closed", .{});
-        }
         self.socket.context.allocator.free(self.url);
     }
 
@@ -87,10 +83,6 @@ pub const Dialer = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        const err = c.nng_dialer_close(self.raw_dialer);
-        if (err != 0) {
-            std.log.warn("Dialer is already closed", .{});
-        }
         self.socket.context.allocator.free(self.url);
     }
 

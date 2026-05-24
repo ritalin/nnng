@@ -185,39 +185,38 @@ pub const tests = struct {
     const test_support = @import("../supports/test.zig");
 
    test "set socket options" {
-       var tmp = std.testing.tmpDir(.{});
-       defer tmp.cleanup();
-       const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
-       defer std.testing.allocator.free(url);
-       const url0 = try std.testing.allocator.dupeSentinel(u8, url, 0);
-       defer std.testing.allocator.free(url0);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+        const url0 = try std.testing.allocator.dupeSentinel(u8, url, 0);
+        defer std.testing.allocator.free(url0);
 
-       const ctx = Context.init(std.testing.io, std.testing.allocator);
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-       var raw_socket: c.nng_socket = undefined;
-       _ = c.nng_rep0_open(&raw_socket);
-       const socket = Socket.init(ctx, raw_socket);
-       defer socket.close();
+        var raw_socket: c.nng_socket = undefined;
+        _ = c.nng_rep0_open(&raw_socket);
+        const socket = Socket.init(ctx, raw_socket);
+        defer socket.close();
 
-       try socket.setOptions(.{ .recv_timeout_ms = 1234 });
-       const values = try socket.options(&.{ .recv_timeout_ms, .send_timeout_ms });
-       try std.testing.expectEqualDeep(Socket.Option.Values.Get{ .recv_timeout_ms = 1234, .send_timeout_ms = c.NNG_DURATION_INFINITE }, values);
+        try socket.setOptions(.{ .recv_timeout_ms = 1234 });
+        const values = try socket.options(&.{ .recv_timeout_ms, .send_timeout_ms });
+        try std.testing.expectEqualDeep(Socket.Option.Values.Get{ .recv_timeout_ms = 1234, .send_timeout_ms = c.NNG_DURATION_INFINITE }, values);
    }
 
    test "get read-only socket options" {
-       var tmp = std.testing.tmpDir(.{});
-       defer tmp.cleanup();
-       const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
-       defer std.testing.allocator.free(url);
-       const url0 = try std.testing.allocator.dupeSentinel(u8, url, 0);
-       defer std.testing.allocator.free(url0);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+        const url0 = try std.testing.allocator.dupeSentinel(u8, url, 0);
+        defer std.testing.allocator.free(url0);
 
-       const ctx = Context.init(std.testing.io, std.testing.allocator);
-
-       var raw_socket: c.nng_socket = undefined;
-       _ = c.nng_rep0_open(&raw_socket);
-       const socket = Socket.init(ctx, raw_socket);
-       defer socket.close();
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+        var raw_socket: c.nng_socket = undefined;
+        _ = c.nng_rep0_open(&raw_socket);
+        const socket = Socket.init(ctx, raw_socket);
+        defer socket.close();
 
        _ = try socket.options(&.{ .recv_fd, .send_fd });
    }
