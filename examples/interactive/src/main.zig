@@ -1,22 +1,13 @@
 const std = @import("std");
 const nnng = @import("nnng");
 const Poller = nnng.ReceivePoller(1);
+const PollEvent = nnng.PollEvent;
 
 pub fn main(init: std.process.Init) !void {
     const ctx = nnng.Context.init(init.io, init.gpa);
     const url = "inproc://shell";
 
     std.log.info("Inproc url: {s}", .{url});
-
-    // Open PUSH socket
-    var push_socket: nnng.Push.Protocol(nnng.Transport.Dialer, nnng.Pipe.Sync) = socket: {
-        var b = try nnng.Push.open(ctx);
-        break:socket try b.as_dialer(url);
-    };
-    errdefer push_socket.close();
-
-    try push_socket.transport.start(.{});
-    defer push_socket.close();
 
     // Open PULL socket
     var pull_socket: nnng.Pull.Protocol(nnng.Transport.Listener, nnng.Pipe.Sync) = socket: {
@@ -25,8 +16,18 @@ pub fn main(init: std.process.Init) !void {
     };
     errdefer pull_socket.close();
 
-    try pull_socket.transport.start(.{});
+    try pull_socket.transport.start(.{ .nonblocking = true });
     defer pull_socket.close();
+
+    // Open PUSH socket
+    var push_socket: nnng.Push.Protocol(nnng.Transport.Dialer, nnng.Pipe.Sync) = socket: {
+        var b = try nnng.Push.open(ctx);
+        break:socket try b.as_dialer(url);
+    };
+    errdefer push_socket.close();
+
+    try push_socket.transport.start(.{ .nonblocking = true });
+    defer push_socket.close();
 
     const pusg_pipe = pipe: {
         var iter = push_socket.pipe.iter();
@@ -46,7 +47,7 @@ pub fn main(init: std.process.Init) !void {
     while(i < 4) {
         i += 1;
         try cb.reaper.tick();
-        _ = try cb.poller.poll(PollerCallback.handleMessage);
+        _ = try cb.poller.poll(PollerCallback.handleMessage, .{});
 
         if (cb.is_quit) break;
     }
@@ -96,13 +97,13 @@ const PollerCallback = struct {
         try self.reaper.spawn(watchStdinInternal, .{ self.push_pipe, &self.stdin });
     }
 
-    pub fn handleMessage(poller: *Poller, results: []const Poller.WakeupResult) anyerror!void {
+    pub fn handleMessage(poller: *Poller, results: []const PollEvent) anyerror!void {
         if (results.len == 0) return;
 
         var self: *Self = @alignCast(@fieldParentPtr("poller", poller));
 
-        if (std.meta.activeTag(results[0].event) == .ready) {
-            const channel = results[0].event.ready;
+        if (std.meta.activeTag(results[0]) == .ready) {
+            const channel = results[0].ready;
             var msg = try channel.receiver().drain(.{});
             // PULL socket is responsible for freeing this msg
             defer msg.deinit();

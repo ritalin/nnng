@@ -2,6 +2,7 @@ const std = @import("std");
 const nnng = @import("nnng");
 const supports = @import("echo_support");
 const Poller = nnng.ReceivePoller(4);
+const PollEvent = nnng.PollEvent;
 
 pub fn main(init: std.process.Init) !void {
     const ctx = nnng.Context.init(init.io, init.gpa);
@@ -26,14 +27,14 @@ pub fn main(init: std.process.Init) !void {
     try Poller.Parallel.attach(&poller, &rep_socket.pipe);
 
     while (true) {
-        _ = try poller.poll(PollerCallback.replyMessage);
+        _ = try poller.poll(PollerCallback.replyMessage, .{});
     }
 }
 
 const PollerCallback = struct {
-    pub fn replyMessage(poller: *Poller, results: []const Poller.WakeupResult) anyerror!void {
+    pub fn replyMessage(poller: *Poller, results: []const PollEvent) anyerror!void {
         for (results) |result| {
-            switch (result.event) {
+            switch (result) {
                 .failed => |err| {
                     outputReceiveErrorLog(err.id, err.err);
                 },
