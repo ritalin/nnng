@@ -33,6 +33,16 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             };
         }
 
+        /// Shutdown cleanup.
+        ///
+        /// Any pending or in-flight messages are intentionally discarded.
+        /// This is a defined part of the lifecycle model, not a resource leak.
+        ///
+        /// Rationale:
+        /// - Poller is the sole FSM writer
+        /// - main thread owns final lifecycle termination
+        /// - after stop, no further message processing is valid
+        /// 
         pub fn deinit(self: *Poller) void {
             self.terminate();
             self.poller_pipes.deinit();
@@ -124,6 +134,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
             if (self.in_fight_set.count() > 0) await: {
                 var wakeups: [buffer_size]PollWakeupResult = undefined;
+                std.debug.print("*** in_fight_set/count: {}\n", .{self.in_fight_set.count()});
                 const count = 
                     self.tasks.select.awaitMany(&wakeups, self.in_fight_set.count()) 
                     catch break:await
@@ -711,10 +722,102 @@ pub const tests = struct {
         try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
 
-    test "one to many communication for PUB/SUB" {
+    test "one to many communication for REQ/REP" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var rep_socket = socket: {
+            var b = try root.Rep.open(ctx);
+            break:socket try b.parallel(3).as_listener(url);
+        };
+        try rep_socket.transport.start(.{});
+        defer rep_socket.close();
+
+        // Open REQ socket
+        var req_socket1 = socket: {
+            var b = try root.Req.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try req_socket1.transport.start(.{});
+        defer req_socket1.close();
+
+        // get send pipe
+        var req_pipe1 = req_socket1.pipe.item;
+
+        send_req: {
+            var msg = try Message.create();
+            try msg.writer.writeAll("Foo");
+            try msg.writer.flush();
+            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            break:send_req;
+        }
+
+        const PollCallback = struct {
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
+                try std.testing.expectEqual(0, p.skip_set.count());
+                try std.testing.expectEqual(1, p.ready_set.count());
+                try std.testing.expectEqual(2, p.in_fight_set.count());
+
+                test_unique_id: {
+                    var iter = p.ready_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.in_fight_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }
+                test_unique_id: {
+                    var iter = p.in_fight_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.ready_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }
+
+                try std.testing.expectEqual(p.ready_set.count(), results.len);
+                 reply: {
+                    for (results) |result| {
+                        switch (result) {
+                            .failed => |x| return x.err,
+                            .ready => |channel| {
+                                var msg = try channel.receiver().drain(.{});
+                                msg.writer.advance(msg.len());
+                                try msg.writer.writeAll("Baz");
+                                try msg.writer.flush();
+                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                            }
+                        }
+                    }
+                    break:reply;
+                }
+            }
+        };
+
+        // Receive with Poller
+        var poller = try TestPoller.create(ctx);
+        defer poller.deinit();
+
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
+
+        const accept= try poller.poll(PollCallback.replyMsg);
+        try std.testing.expectEqual(1, accept);
+
+        receive_msg: {
+            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("FooBaz", msg.bytes());
+            break:receive_msg;
+        }
+    }
+
+    test "one to many communication for PUB/SUB" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
 
         const ctx = root.Context.init(std.testing.io, std.testing.allocator);
@@ -739,13 +842,13 @@ pub const tests = struct {
         defer pub_socket1.close();
 
         // get send pipe
-        var req_pipe1 = pub_socket1.pipe.item;
+        var pub_pipe1 = pub_socket1.pipe.item;
 
         send_req: {
             var msg = try Message.create();
             try msg.writer.writeAll("topic|Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try pub_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
             break:send_req;
         }
 
