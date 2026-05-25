@@ -52,9 +52,6 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         pub fn poll(self: *Poller, callback: WakeupCallback) !usize {
             var ready_iter = self.ready_set.keyIterator();
 
-            const channels = try self.context.allocator.alloc(ReadyChannel, self.ready_set.count());
-            defer self.context.allocator.free(channels);
-
             const cpus = try std.Thread.getCpuCount();
             var i: usize = 0;
             while (ready_iter.next()) |id| {
@@ -62,8 +59,11 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                 if (self.skip_set.contains(id.*)) continue;
 
                 if (self.poller_pipes.get(id.*)) |pipe| {
+                    var channel = try self.context.allocator.create(ReadyChannel);
+                    channel.id = pipe.id();
+
                     try self.in_fight_set.put(id.*, {});
-                    try self.tasks.attach(id.*, pipe, &channels[i], self.in_fight_set.count() > cpus - 1);
+                    try self.tasks.attach(id.*, pipe, channel, self.in_fight_set.count() > cpus - 1);
                     i += 1;
                 }
             }
@@ -73,20 +73,30 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
             var wakeups: [buffer_size]PollWakeupResult = undefined;
             const count = try self.tasks.poll(&wakeups);
+            defer dropReadyChannels(self.context.allocator, wakeups[0..count]);
 
             var results: [buffer_size]PollEvent = undefined;
 
             for (0..count) |w| {
-                results[w] = wakeups[w].event;
+                switch (wakeups[w].event) {
+                    .ready => |event| results[w] = .{ .ready = event.channel },
+                    .failed => |event| results[w] = .{ .failed = .{ .id = event.channel.id, .err = event.err } },
+                }
+            }
 
-                if (std.meta.activeTag(wakeups[w].event) == .ready) {
-                    // reset in-fight set (ready channel only)
-                    _ = self.in_fight_set.remove(wakeups[w].event.ready.id);
+            // reactivate
+            for (0..count) |w| {
+                const poller_id, const channel = switch (wakeups[w].event) {
+                    .ready => |event| .{ event.poller_id, event.channel },
+                    .failed => |event| .{ event.poller_id, event.channel },
+                };
+                
+                // reset in-fight set (ready channel only)
+                _ = self.in_fight_set.remove(poller_id);
 
-                    // ready pipe
-                    if (wakeups[w].event.ready.features.receive_first) {
-                        try self.ready_set.put(wakeups[w].event.ready.id, {});
-                    }
+                // ready pipe
+                if (channel.features.receive_first) {
+                    try self.ready_set.put(poller_id, {});
                 }
             }
 
@@ -95,7 +105,6 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             while(skip_iter.next()) |id| {
                 try self.ready_set.put(id.*, {});
             }
-
             try callback(self, results[0..count]);
 
             return count;
@@ -112,6 +121,16 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             var iter = self.in_fight_set.keyIterator();
             while (iter.next()) |id| {
                 self.cancel(id.*);
+            }
+
+            if (self.in_fight_set.count() > 0) await: {
+                var wakeups: [buffer_size]PollWakeupResult = undefined;
+                const count = 
+                    self.tasks.select.awaitMany(&wakeups, self.in_fight_set.count()) 
+                    catch break:await
+                ;
+
+                dropReadyChannels(self.context.allocator, wakeups[0..count]);
             }
         }
 
@@ -137,6 +156,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                     const channel: poller_impl.PollerPipe = .{
                         .owner = p,
                         .vtable = .{
+                            .on_pipe_id = poller_impl.PollerPipeImpl.Sync.pipeId,
                             .on_wait_complete = poller_impl.PollerPipeImpl.Sync.waitComplete,
                             .on_cancel = poller_impl.PollerPipeImpl.Sync.cancelSession,
                         },
@@ -155,6 +175,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                     const channel: poller_impl.PollerPipe = .{
                         .owner = p,
                         .vtable = .{
+                            .on_pipe_id = poller_impl.PollerPipeImpl.Parallel.pipeId,
                             .on_wait_complete = poller_impl.PollerPipeImpl.Parallel.waitComplete,
                             .on_cancel = poller_impl.PollerPipeImpl.Parallel.cancelSession,
                         },
@@ -164,10 +185,6 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                     try poller.attachInternal(p.id, channel);
                 }
             }
-        };
-
-        const PollWakeupResult = union {
-            event: PollEvent,
         };
 
         pub const WakeupCallback = *const fn (poller: *Poller, channels: []const PollEvent) anyerror!void;
@@ -209,19 +226,34 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
     };
 }
 
-fn doReceive(id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) PollEvent {
+fn doReceive(id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) std.meta.fieldInfo(PollWakeupResult, .event).type {
     pipe.wait(channel)
     catch |err| return .{
-        .failed = .{ .id = id, .err = err },
+        .failed = .{ .poller_id = id, .channel = channel, .err = err },
     };
 
     return .{
-        .ready = channel.*
+        .ready = .{ .poller_id = id, .channel = channel },
     };
 }
 
+fn dropReadyChannels(allocator: std.mem.Allocator, results: []PollWakeupResult) void {
+    for (results) |*result| {
+        switch (result.event) {
+            .failed => |event| allocator.destroy(event.channel),
+            .ready => |event| allocator.destroy(event.channel),
+        }
+    }
+}
+
+const PollWakeupResult = union {
+    event: union(enum) { 
+        ready: struct { poller_id: u64, channel: *ReadyChannel }, 
+        failed: struct { poller_id: u64, channel: *ReadyChannel, err: ReceiveError } },
+};
+
 pub const PollEvent = union(enum) {
-    ready: ReadyChannel,
+    ready: *ReadyChannel,
     failed: struct {
         id: u64,
         err: ReceiveError,

@@ -17,12 +17,17 @@ const AioPipeError = root.AioPipeError;
 pub const PollerPipe = struct {
     owner: *anyopaque,
     vtable: struct {
+        on_pipe_id: *const fn (owner: *anyopaque) u64,
         on_wait_complete: *const fn (owner: *anyopaque, channel: *ReadyChannel) ReceiveError!void,
         on_cancel: *const fn (owner: *const anyopaque) void,
     },
     features: Pipe.Features,
 
     const Self = @This();
+
+    pub fn id(self: *const Self) u64 {
+        return (self.vtable.on_pipe_id)(self.owner);
+    }
 
     pub fn wait(self: *const Self, channel: *ReadyChannel) ReceiveError!void {
         return (self.vtable.on_wait_complete)(self.owner, channel);
@@ -41,6 +46,12 @@ pub const PollerPipeImpl = union(enum) {
         pipe: *Pipe.Sync.Item,
 
         const Self = @This();
+
+        pub fn pipeId(ptr: *anyopaque) u64 {
+            const pipe: *Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
+
+            return pipe.id;
+        }
 
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
@@ -103,6 +114,12 @@ pub const PollerPipeImpl = union(enum) {
         pipe: *Pipe.Parallel.Item,
 
         const Self = @This();
+
+        pub fn pipeId(ptr: *anyopaque) u64 {
+            const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
+
+            return pipe.id;
+        }
 
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));

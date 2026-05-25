@@ -285,9 +285,6 @@ pub const tests = struct {
         defer req_socket2.close();
 
         var msgs: [3]Message = .{ try Message.create(), try Message.create(), try Message.create() };
-        defer {
-            for (&msgs) |*msg| msg.deinit();
-        }
 
         // get REQ pipes
         var req_pipe0 = iter: {
@@ -346,19 +343,22 @@ pub const tests = struct {
         //
 
         receive_REQ_0: {
-            const msg = try req_pipe0.receiver().drain(.{});
+            var msg = try req_pipe0.receiver().drain(.{});
+            defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzFizz", v2);
             break:receive_REQ_0;
         }
         receive_REQ_1: {
-            const msg = try req_pipe1.receiver().drain(.{});
+            var msg = try req_pipe1.receiver().drain(.{});
+            defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzBuzz", v2);
             break:receive_REQ_1;
         }
         receive_REQ_2: {
-            const msg = try req_pipe2.receiver().drain(.{});
+            var msg = try req_pipe2.receiver().drain(.{});
+            defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzFizzBuzz", v2);
             break:receive_REQ_2;
@@ -397,7 +397,7 @@ pub const tests = struct {
     test "REP receive timeout for parallel pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+           const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
         defer std.testing.allocator.free(url);
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);

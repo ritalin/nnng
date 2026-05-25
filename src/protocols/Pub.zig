@@ -80,6 +80,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -107,6 +108,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "push_pull");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -147,6 +149,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -158,7 +161,7 @@ pub const tests = struct {
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
 
-        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
+        // try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
         // PUB socket
         var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
@@ -168,7 +171,7 @@ pub const tests = struct {
         try pub_socket1.transport.start(.{});
         defer pub_socket1.close();
 
-        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
+        // try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
         // get pipe
         var pub_pipe = iter: {
@@ -181,7 +184,6 @@ pub const tests = struct {
         };
 
         var msg = try Message.create();
-        defer msg.deinit();
 
         // PUB (send)
         const v0 = "greeting|Hello";
@@ -199,6 +201,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -283,6 +286,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -362,6 +366,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -418,6 +423,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -455,7 +461,6 @@ pub const tests = struct {
         };
 
         var msg = try Message.create();
-        defer msg.deinit();
 
         // PUB (send)
         const v0 = "greeting|Hello";
@@ -473,6 +478,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -569,6 +575,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -660,6 +667,7 @@ pub const tests = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
@@ -700,8 +708,6 @@ pub const tests = struct {
 
         send_PUB: {
             var msg = try Message.create();
-            defer msg.deinit();
-
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length

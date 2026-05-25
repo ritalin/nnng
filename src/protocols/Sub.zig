@@ -541,6 +541,7 @@ pub const global_subscription = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pusb_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
@@ -696,6 +697,7 @@ pub const pipe_subscription = struct {
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pusb_sub");
         defer std.testing.allocator.free(url);
+        defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
         var socket: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
