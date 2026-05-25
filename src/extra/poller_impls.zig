@@ -124,8 +124,6 @@ pub const PollerPipeImpl = union(enum) {
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
-            std.debug.print("*** Poller_WAIT:START/aio: {}\n", .{ pipe.fsm.raw_aio });
-
             try pipe.fsm.transitWaiting();
             c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
             try pipe.fsm.wait();

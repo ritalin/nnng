@@ -47,24 +47,17 @@ pub const StateMachine = extern struct {
     }
 
 pub fn wait(self: *StateMachine) AioPipeError!void {
-    std.debug.print("*** ENTER_WAIT/aio: {}, state={}\n", .{self.raw_aio, self.currentState()});
-
     while (self.currentState() == .wating) {
         if (self.currentState() == .completed) return;
         if (self.currentState() == .stopped) return error.Canceled;
         try self.inner.barrier.wait(self.inner.io);
     }
-
-    std.debug.print("*** EXIT_WAIT/aio: {}, state={}\n", .{self.raw_aio, self.currentState()});
 }
 
     pub fn transitIdle(self: *StateMachine) void {
-        std.debug.print("*** IDLE_BEGIN/aio: {}, state={}\n", .{self.raw_aio, self.currentState()});
         @atomicStore(AioState, &self.inner.state, .idle, .release);
-        std.debug.print("*** IDLE_AFTER_STATE\n", .{});
 
         self.inner.barrier.reset();
-        std.debug.print("*** IDLE_AFTER_RESET/aio: {}\n", .{self.raw_aio});
     }
 
     pub fn transitWaiting(self: *StateMachine) AioPipeError!void {
@@ -81,18 +74,11 @@ pub fn wait(self: *StateMachine) AioPipeError!void {
     }
 
     pub fn transitStopped(self: *StateMachine) void {
-        std.debug.print("*** STOP_BEGIN/aio: {}, state={}\n", .{self.raw_aio, self.currentState()});
-
         @atomicStore(AioState, &self.inner.state, .stopped, .release);
-        std.debug.print("*** STOP_AFTER_STATE/aio: {}\n", .{self.raw_aio});
 
         c.nng_aio_stop(self.raw_aio);
 
-        std.debug.print("*** STOP_AFTER_NNG/aio: {}, \n", .{self.raw_aio});
-
         self.inner.barrier.set(self.inner.io);
-
-        std.debug.print("*** STOP_AFTER_SET/aio: {}\n", .{self.raw_aio});
     }
 
     pub fn currentState(self: *StateMachine) AioState {

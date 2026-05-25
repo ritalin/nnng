@@ -134,7 +134,6 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
             if (self.in_fight_set.count() > 0) await: {
                 var wakeups: [buffer_size]PollWakeupResult = undefined;
-                std.debug.print("*** in_fight_set/count: {}\n", .{self.in_fight_set.count()});
                 const count = 
                     self.tasks.select.awaitMany(&wakeups, self.in_fight_set.count()) 
                     catch break:await
