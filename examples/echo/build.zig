@@ -1,7 +1,10 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const pkg_prefix = b.option([]const u8, "NNG_PREFIX", "Native dependency root path") orelse @panic("Need to specify pkg prefix path");
+    const pkg_prefix =
+        b.option([]const u8, "NNG_PREFIX", "pkg prefix path")
+        orelse b.graph.environ_map.get("NNG_PREFIX").?
+    ;
 
     const dep_blocking_server = b.dependency("blocking_server", .{ .NNG_PREFIX = pkg_prefix });
     const dep_pollable_server = b.dependency("pollable_server", .{ .NNG_PREFIX = pkg_prefix });
