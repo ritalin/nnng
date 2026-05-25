@@ -59,8 +59,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                 if (self.skip_set.contains(id.*)) continue;
 
                 if (self.poller_pipes.get(id.*)) |pipe| {
-                    var channel = try self.context.allocator.create(ReadyChannel);
-                    channel.id = pipe.id();
+                    const channel = try self.context.allocator.create(ReadyChannel);
 
                     try self.in_fight_set.put(id.*, {});
                     try self.tasks.attach(id.*, pipe, channel, self.in_fight_set.count() > cpus - 1);
@@ -712,7 +711,92 @@ pub const tests = struct {
         try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
 
-    test "cance receive on poller" {
+    test "one to many communication for PUB/SUB" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+
+        // Open REP socket
+        var sub_socket = socket: {
+            var b = try root.Sub.open(ctx);
+            break:socket try b.parallel(3).as_listener(url);
+        };
+        var view = sub_socket.subscriptionView();
+        try view.subscribe("topic");
+
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
+
+        // Open REQ socket
+        var pub_socket1 = socket: {
+            var b = try root.Pub.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try pub_socket1.transport.start(.{});
+        defer pub_socket1.close();
+
+        // get send pipe
+        var req_pipe1 = pub_socket1.pipe.item;
+
+        send_req: {
+            var msg = try Message.create();
+            try msg.writer.writeAll("topic|Foo");
+            try msg.writer.flush();
+            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            break:send_req;
+        }
+
+        const PollCallback = struct {
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
+                try std.testing.expectEqual(0, p.skip_set.count());
+                try std.testing.expectEqual(3, p.ready_set.count() + p.in_fight_set.count());
+
+                test_unique_id: {
+                    var iter = p.ready_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.in_fight_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }
+                test_unique_id: {
+                    var iter = p.in_fight_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.ready_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }
+
+                try std.testing.expectEqual(p.ready_set.count(), results.len);
+                received: {
+                    for (results) |result| {
+                        try std.testing.expectEqual(.ready, std.meta.activeTag(result));
+
+                        var msg = try result.ready.receiver().drain(.{});
+                        defer msg.deinit();
+                        try std.testing.expectEqualStrings("topic|Foo", msg.bytes());
+                    }
+                    break:received;
+                }
+            }
+        };
+
+        // Receive with Poller
+        var poller = try TestPoller.create(ctx);
+        defer poller.deinit();
+
+        try TestPoller.Parallel.attach(&poller, &sub_socket.pipe);
+
+        var accept: usize = 0;
+        while (accept < 3) {
+            accept += try poller.poll(PollCallback.replyMsg);
+        }
+        try std.testing.expectEqual(3, accept);
+    }
+
+    test "cancel receive on poller" {
 
     }
 };
