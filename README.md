@@ -64,6 +64,12 @@ If installed elsewhere, specify the prefix:
 zig build -DNNG_PREFIX=/path/to/nng
 ```
 
+## Notes on NNG asynchronous lifecycle behavior
+
+NNG uses an internal asynchronous reaper for resource cleanup.
+Under highly concurrent test execution with rapid teardown/recreation, this may occasionally lead to nondeterministic test failures due to lifecycle overlap.
+This behavior is inherent to the underlying library design and does not affect normal application usage patterns.
+
 ## Credits
 
 - **nng**: https://nng.nanomsg.org/

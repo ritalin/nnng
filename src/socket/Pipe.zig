@@ -14,6 +14,7 @@ const Sender = @import("../message/Sender.zig");
 const Message = @import("../message/Message.zig");
 const Receiver = @import("../message/Receiver.zig");
 const AioSlot = @import("../message/message_impl.zig").AioSlot;
+const AioStateMachine = @import("./aio_fsm.zig").StateMachine;
 
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
@@ -159,7 +160,7 @@ pub const Parallel = struct {
     /// Internal. Called by protocol close().
     pub fn deinit(self: *Self) void {
         for (self.items) |*item| {
-            item.deinit();
+            item.deinit(self.socket.context.allocator);
         }
         self.socket.context.allocator.free(self.items);
     }
@@ -193,6 +194,7 @@ pub const Parallel = struct {
         raw_ctx: c.nng_ctx,
         features: Features,
         aio_slot: AioSlot,
+        fsm: *AioStateMachine,
 
         const State = enum { send, receive };
 
@@ -206,26 +208,19 @@ pub const Parallel = struct {
                 break:open raw_ctx;
             };
 
-            const raw_aio = open: {
-                var raw_aio: ?*c.nng_aio = null;
-                const err = c.nng_aio_alloc(&raw_aio, null, null);
-                if (err != 0) {
-                    defer _ = c.nng_ctx_close(raw_ctx);
-                    return errors.aio_pipe_error(@intCast(err));
-                }
-                break:open raw_aio;
-            };
+            const fsm = try AioStateMachine.create(socket.context.io, socket.context.allocator);
 
             return .{
                 .id = impl.PipeIdCounter.next(),
                 .raw_ctx = raw_ctx,
                 .features = features,
-                .aio_slot = .{ .raw_aio = raw_aio.? },
+                .aio_slot = .{ .raw_aio = fsm.raw_aio },
+                .fsm = fsm,
             };
         }
 
-        pub fn deinit(self: *@This()) void {
-            _ = c.nng_aio_free(self.aio_slot.raw_aio);
+        pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+            self.fsm.deinit(allocator);
             self.* = undefined;
         }
 

@@ -124,13 +124,15 @@ pub const PollerPipeImpl = union(enum) {
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
+            try pipe.fsm.transitWaiting();
             c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
-            c.nng_aio_wait(pipe.aio_slot.raw_aio);
+            try pipe.fsm.wait();
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
+            defer pipe.fsm.transitIdle();
 
             const self: Self = .{
                 .pipe = pipe,
@@ -149,7 +151,7 @@ pub const PollerPipeImpl = union(enum) {
 
         pub fn cancelSession(ptr: *const anyopaque) void {
             const pipe: *const Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
-            c.nng_aio_stop(pipe.aio_slot.raw_aio);
+            pipe.fsm.transitStopped();
         }
 
         pub fn submitMessage(sender0: *const Sender, msg: Message, options: Sender.Options) SendError!void {

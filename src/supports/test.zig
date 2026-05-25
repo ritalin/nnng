@@ -54,7 +54,7 @@ fn callbackPipeUpNotification(_: c.nng_pipe, _: c.nng_pipe_ev, arg: ?*anyopaque)
 }
 
 test "test/supports" {
-    // std.testing.refAllDecls(@This());
+    std.testing.refAllDecls(@This());
 }
 
 pub const tests = struct {
