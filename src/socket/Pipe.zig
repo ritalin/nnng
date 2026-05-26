@@ -31,7 +31,7 @@ pub const Features = std.enums.EnumFieldStruct(Feature, bool, false);
 /// Synchronous message handling.
 /// Processes messages in a single flow.
 pub const Sync = struct {
-    item: Item,
+    item: *Item,
     features: Features,
 
     const Self = @This();
@@ -53,7 +53,7 @@ pub const Sync = struct {
     /// This is the primary way to access pipe instances.
     pub fn iter(self: *Self) PipeIter {
         return .{
-            .item = &self.item,
+            .item = self.item,
         };
     }
 
@@ -65,25 +65,31 @@ pub const Sync = struct {
         aio_slot: AioSlot,
 
         // Internal
-        pub fn create(socket: Socket, features: Features) AioPipeError!Item {
+        pub fn create(socket: Socket, features: Features) AioPipeError!*Item {
+            const self = try socket.context.allocator.create(Item);
+            errdefer socket.context.allocator.destroy(self);
+
             var raw_aio: ?*c.nng_aio = null;
             const err = c.nng_aio_alloc(&raw_aio, null, null);
             if (err != 0) {
                 return errors.aio_pipe_error(@intCast(err));
             }
 
-            return .{
+            self.* = .{
                 .id = impl.PipeIdCounter.next(),
                 .socket = socket,
                 .features = features,
                 .aio_slot = .{ .raw_aio = raw_aio.? },
             };
+
+            return self;
         }
 
         // Internal
         pub fn deinit(self: *@This()) void {
             c.nng_aio_stop(self.aio_slot.raw_aio);
             c.nng_aio_free(self.aio_slot.raw_aio);
+            self.socket.context.allocator.destroy(self);
         }
 
         /// Returns a sender for this pipe.
