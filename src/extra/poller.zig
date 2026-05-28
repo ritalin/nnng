@@ -203,7 +203,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         // Internal implementations
         //
 
-       const PollerTaskImpl = struct {
+        const PollerTaskImpl = struct {
            select: std.Io.Select(PollWakeupResult),
            select_buffer: [buffer_size]PollWakeupResult = undefined,
 
@@ -232,7 +232,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
            fn poll(self: *PollerTaskImpl, wakeups: []PollWakeupResult) !usize {
                return self.select.awaitMany(wakeups, 1);
            }
-       };
+        };
     };
 }
 

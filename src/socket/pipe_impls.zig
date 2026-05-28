@@ -19,7 +19,7 @@ pub const SyncSenderImpl = struct {
     pub fn submit_message(sender: *const Sender, msg: Message, options: Sender.Options) root.SendError!void {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(sender.owner));
 
-        std.log.debug("Start sending/socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
+        std.log.debug("Start sending:Sync/id: {}, socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.id, pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
 
         c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
         c.nng_send_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
@@ -41,7 +41,7 @@ pub const SyncReceiverImpl = struct {
 
         try receiver.slot.storeReceiveOpion(options);
 
-        std.log.debug("Start receiving:Sync/socket: {}, id: {}, flags: {}", .{pipe.socket.raw_socket, pipe.id, options});
+        std.log.debug("Start receiving:Sync/id: {}, socket: {}, id: {}, flags: {}", .{pipe.id, pipe.socket.raw_socket, pipe.id, options});
 
         c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
 
@@ -74,7 +74,7 @@ pub const ParallelSenderImpl = struct {
     pub fn submit_message(sender: *const Sender, msg: Message, options: Sender.Options) root.SendError!void {
         const pipe: *const root.Pipe.Parallel.Item = @ptrCast(@alignCast(sender.owner));
 
-        std.log.debug("Start sending:Parallel/flags(discard): {}, len(edit): {}, len(commit): {}", .{options, msg.writer.end, msg.len()});
+        std.log.debug("Start sending:Parallel/id: {}, flags(discard): {}, len(edit): {}, len(commit): {}", .{pipe.id, options, msg.writer.end, msg.len()});
 
         c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
         c.nng_ctx_send(pipe.raw_ctx, pipe.aio_slot.raw_aio);
@@ -95,7 +95,7 @@ pub const ParallelReceiverImpl = struct {
 
         try receiver.slot.storeReceiveOpion(options);
 
-        std.log.debug("Start receiving:Sync/id: {}, flags: {}", .{pipe.id, options});
+        std.log.debug("Start receiving:Parallel/id: {}, flags: {}", .{pipe.id, options});
 
         c.nng_ctx_recv(pipe.raw_ctx, receiver.slot.raw_aio);
 

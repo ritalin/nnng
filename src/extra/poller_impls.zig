@@ -59,6 +59,8 @@ pub const PollerPipeImpl = union(enum) {
             c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
             c.nng_aio_wait(pipe.aio_slot.raw_aio);
 
+            std.log.debug("Poller-awake:Sync/id: {}", .{ pipe.id });
+
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
@@ -105,6 +107,8 @@ pub const PollerPipeImpl = union(enum) {
                 return errors.receive_error(@intCast(err));
             }
 
+            std.log.debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
+
             const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
         }
@@ -127,6 +131,8 @@ pub const PollerPipeImpl = union(enum) {
             try pipe.fsm.transitWaiting();
             c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
             try pipe.fsm.wait();
+
+            std.log.debug("Poller-awake:Parallel/id: {}", .{ pipe.id });
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
@@ -174,6 +180,7 @@ pub const PollerPipeImpl = union(enum) {
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
+            std.log.debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
 
             const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
