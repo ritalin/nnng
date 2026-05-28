@@ -21,7 +21,7 @@ pub fn close_error(err: c_int) root.CloseError {
     unreachable;
 }
 
-pub fn new_transport_error(err: c_int) root.NewTransportError {
+pub fn new_transport_error(err: c_int) root.TransportError {
     if (err == c.NNG_EADDRINVAL) {
         return error.InvalidUrl;
     }
