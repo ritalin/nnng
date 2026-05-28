@@ -20,44 +20,59 @@ fn optionsIntoMask(options: Options) c_int {
 
 pub const Listener = struct {
     socket: Socket,
-    raw_listener: c.nng_listener,
-    url: [:0]const u8,
+    raw_listeners: std.ArrayListUnmanaged(c.nng_listener),
 
     const Self = @This();
 
     /// Internal. Called by protocol open().
-    pub fn create(socket: Socket, url: []const u8) root.NewTransportError!Self {
-        const urlz = try socket.context.allocator.dupeSentinel(u8, url, 0);
-        errdefer socket.context.allocator.free(urlz);
-
-        var raw_listener: c.nng_listener = undefined;
-        const err = c.nng_listener_create(&raw_listener, socket.raw_socket, urlz);
-        if (err != 0) {
-            return errors.new_transport_error(err);
-        }
+    pub fn create(socket: Socket, url: []const u8) root.TransportError!Self {
+        var listeners: std.ArrayListUnmanaged(c.nng_listener) = .empty;
+        try listeners.append(socket.context.allocator, try createRawListener(&socket, url));
 
         return .{
             .socket = socket,
-            .raw_listener = raw_listener,
-            .url = urlz,
+            .raw_listeners = listeners,
         };
     }
 
     /// Internal. Called by protocol close().
-    pub fn deinit(self: Self) void {
-        self.socket.context.allocator.free(self.url);
+    pub fn deinit(self: *Self) void {
+        self.raw_listeners.deinit(self.socket.context.allocator);
     }
 
     /// Starts listening for incoming connections.
-    pub fn start(self: Self, options: Options) root.StartTransportError!void {
+    pub fn start(self: *const Self, options: Options) root.StartTransportError!void {
         const flags = optionsIntoMask(options);
 
-        const err = c.nng_listener_start(self.raw_listener, flags);
-        if (err != 0) {
-            return errors.start_transport_error(err);
+        for (self.raw_listeners.items) |listener| {
+            const err = c.nng_listener_start(listener, flags);
+            if (err != 0) {
+                return errors.start_transport_error(err);
+            }
         }
     }
+
+    /// Adds another channel.
+    pub fn addChannel(self: *Self, url: []const u8) root.TransportError!void {
+        if (url.len > c.NNG_MAXADDRLEN - 1) {
+            return error.TooLongUrl;
+        }
+        try self.raw_listeners.append(self.socket.context.allocator, try createRawListener(&self.socket, url));
+    }
 };
+
+fn createRawListener(socket: *const Socket, url: []const u8) root.TransportError!c.nng_listener {
+    const urlz = try socket.context.allocator.dupeSentinel(u8, url, 0);
+    defer socket.context.allocator.free(urlz);
+
+    var raw_listener: c.nng_listener = undefined;
+    const err = c.nng_listener_create(&raw_listener, socket.raw_socket, urlz);
+    if (err != 0) {
+        return errors.new_transport_error(err);
+    }
+    
+    return raw_listener;
+}
 
 pub const Dialer = struct {
     socket: Socket,
@@ -66,7 +81,10 @@ pub const Dialer = struct {
 
     const Self = @This();
 
-    pub fn create(socket: Socket, url: []const u8) anyerror!Self {
+    pub fn create(socket: Socket, url: []const u8) root.TransportError!Self {
+        if (url.len > c.NNG_MAXADDRLEN - 1) {
+            return error.TooLongUrl;
+        }
         const urlz = try socket.context.allocator.dupeSentinel(u8, url, 0);
 
         var raw_dialer: c.nng_dialer = undefined;
@@ -86,7 +104,7 @@ pub const Dialer = struct {
         self.socket.context.allocator.free(self.url);
     }
 
-    pub fn start(self: Self, options: Options) root.StartTransportError!void {
+    pub fn start(self: *const Self, options: Options) root.StartTransportError!void {
         const flags = optionsIntoMask(options);
 
         const err = c.nng_dialer_start(self.raw_dialer, flags);

@@ -32,8 +32,8 @@ pub const FeatureError = error { NotSupported };
 pub const OpenError = std.mem.Allocator.Error || FeatureError;
 pub const CloseError = error { AlreadyClosed };
 pub const ConnectionError = error { NotOpened, Refused, Timeout };
-pub const TransportUrlError = error { InvalidUrl };
-pub const NewTransportError = TransportUrlError || CloseError || std.mem.Allocator.Error;
+pub const TransportUrlError = error { InvalidUrl, TooLongUrl };
+pub const TransportError = TransportUrlError || CloseError || std.mem.Allocator.Error;
 pub const InvalidError = error { InvalidValue, InvalidState };
 
 pub const StartTransportError = (

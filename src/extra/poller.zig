@@ -59,10 +59,9 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         ///
         /// Behavior is undefined if re-entered.
         ///
-        pub fn poll(self: *Poller, callback: WakeupCallback, options: Options) !usize {
+        pub fn poll(self: *Poller, callback: WakeupCallback) !usize {
             var ready_iter = self.ready_set.keyIterator();
 
-            const cpus = try std.Thread.getCpuCount();
             var i: usize = 0;
             while (ready_iter.next()) |id| {
                 if (self.in_fight_set.contains(id.*)) continue;
@@ -70,10 +69,9 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
                 if (self.poller_pipes.get(id.*)) |pipe| {
                     const channel = try self.context.allocator.create(ReadyChannel);
-                    const force_concurrent = options.force_concurrent orelse (self.in_fight_set.count() > cpus - 1);
 
                     try self.in_fight_set.put(id.*, {});
-                    try self.tasks.attach(id.*, pipe, channel, force_concurrent);
+                    try self.tasks.attach(id.*, pipe, channel);
                     i += 1;
                 }
             }
@@ -203,7 +201,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         // Internal implementations
         //
 
-       const PollerTaskImpl = struct {
+        const PollerTaskImpl = struct {
            select: std.Io.Select(PollWakeupResult),
            select_buffer: [buffer_size]PollWakeupResult = undefined,
 
@@ -220,19 +218,14 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                allocator.destroy(self);
            }
 
-           fn attach(self: *PollerTaskImpl, id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel, need_concurrent: bool) !void {
-               if (need_concurrent) {
-                   try self.select.concurrent(.event, doReceive, .{ id, pipe, channel });
-               }
-               else {
-                   self.select.async(.event, doReceive, .{ id, pipe, channel });
-               }
+           fn attach(self: *PollerTaskImpl, id: u64, pipe: poller_impl.PollerPipe, channel: *ReadyChannel) !void {
+                try self.select.concurrent(.event, doReceive, .{ id, pipe, channel });
            }
 
            fn poll(self: *PollerTaskImpl, wakeups: []PollWakeupResult) !usize {
                return self.select.awaitMany(wakeups, 1);
            }
-       };
+        };
     };
 }
 
@@ -268,10 +261,6 @@ pub const PollEvent = union(enum) {
         id: u64,
         err: ReceiveError,
     },
-};
-
-pub const Options = struct {
-    force_concurrent: ?bool = null,
 };
 
 pub const Timeout = union {
@@ -519,7 +508,7 @@ pub const tests = struct {
         };
 
         try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
-        _ = try poller.poll(PollCallback.replyMsg, .{});
+        _ = try poller.poll(PollCallback.replyMsg);
 
         receive_msg: {
             var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
@@ -634,7 +623,7 @@ pub const tests = struct {
 
         var accept: usize = 0;
         while (accept < 2) {
-            accept += try poller.poll(PollCallback.replyMsg, .{});
+            accept += try poller.poll(PollCallback.replyMsg);
         }
 
         receive_msg: {
@@ -717,7 +706,7 @@ pub const tests = struct {
         try std.testing.expectEqual(cpus * 2, cb.poller.ready_set.count());
         try std.testing.expectEqual(0, cb.poller.in_fight_set.count());
 
-        const n = try cb.poller.poll(PollCallback.replyMsg, .{});
+        const n = try cb.poller.poll(PollCallback.replyMsg);
         try std.testing.expectEqual(1, n);
         try std.testing.expectEqual(true, cb.called);
 
@@ -807,7 +796,7 @@ pub const tests = struct {
 
         try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
 
-        const accept= try poller.poll(PollCallback.replyMsg, .{});
+        const accept= try poller.poll(PollCallback.replyMsg);
         try std.testing.expectEqual(1, accept);
 
         receive_msg: {
@@ -898,7 +887,7 @@ pub const tests = struct {
 
         var accept: usize = 0;
         while (accept < 3) {
-            accept += try poller.poll(PollCallback.replyMsg, .{});
+            accept += try poller.poll(PollCallback.replyMsg);
         }
         try std.testing.expectEqual(3, accept);
     }

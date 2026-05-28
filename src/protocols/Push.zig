@@ -190,4 +190,72 @@ pub const tests = struct {
 
         try std.testing.expectEqualStrings(v0, msg.bytes());
     }
+
+    test "Multi channel listener" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url_1 = try test_support.make_ipc_sock(tmp.dir, "push_pull");
+        defer std.testing.allocator.free(url_1);
+        const url_2 = "inproc://test";
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // Open PULL socket
+        var pull_socket: Pull.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pull.open(ctx);
+            break:socket try b.as_listener(url_1);
+        };
+        try pull_socket.transport.addChannel(url_2);
+        try pull_socket.transport.start(.{});
+        defer pull_socket.close();
+
+
+        // Open PUSH#1 socket
+        var push_socket_1: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
+            break:socket try b.as_dialer(url_2);
+        };
+        try push_socket_1.transport.start(.{});
+        defer push_socket_1.close();
+
+        // Open PUSH#2 socket
+        var push_socket_2: Push.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Push.open(ctx);
+            break:socket try b.as_dialer(url_1);
+        };
+        try push_socket_2.transport.start(.{});
+        defer push_socket_2.close();
+
+        // get pipe
+        var pull_pipe = pull_socket.pipe.item;
+
+        push_primary: {
+            var push_pipe = push_socket_1.pipe.item;
+
+            var msg = try Message.create();
+            try msg.writer.writeAll("Foo");
+            try msg.writer.flush();
+            try push_pipe.sender().submit(msg, .{});
+
+            msg = try pull_pipe.receiver().drain(.{});
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("Foo", msg.bytes());
+
+            break:push_primary;
+        }
+        push_secondary: {
+            var push_pipe = push_socket_2.pipe.item;
+
+            var msg = try Message.create();
+            try msg.writer.writeAll("Bar");
+            try msg.writer.flush();
+            try push_pipe.sender().submit(msg, .{});
+
+            msg = try pull_pipe.receiver().drain(.{});
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("Bar", msg.bytes());
+
+            break:push_secondary;
+        }
+    }
 };
