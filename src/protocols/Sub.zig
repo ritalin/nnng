@@ -691,8 +691,9 @@ pub fn ParallelPipeSubscriptionView(comptime TTransport: type) type {
 
 pub const pipe_subscription = struct {
     const test_support = @import("../supports/test.zig");
-
-    test "Subscription pipe only" {
+    const Pub = root.Pub;
+    
+    test "Subscription pipe" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pusb_sub");
@@ -700,9 +701,19 @@ pub const pipe_subscription = struct {
         defer test_support.cleanup();
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
-        var socket: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
+
+        // Sub socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
+
+        // Sub socket
+        var socket: Sub.Protocol(Transport.Dialer, Pipe.Parallel) = socket: {
             var b = try Sub.open(ctx);
-            break:socket try b.parallel(3).as_listener(url);
+            break:socket try b.parallel(3).as_dialer(url);
         };
         try socket.transport.start(.{});
         defer socket.close();
