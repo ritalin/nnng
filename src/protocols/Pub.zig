@@ -84,23 +84,23 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // Open SUB
-
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.as_listener(url);
-        };
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
         // Open PUB
 
-        var pub_socket: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
             var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
+            break:socket try b.as_listener(url);
         };
         try pub_socket.transport.start(.{});
         defer pub_socket.close();
+
+        // Open SUB
+
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
     }
 
     test "PUB socket features for sync pipe" {
@@ -112,23 +112,23 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // Open SUB socket
-
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.as_listener(url);
-        };
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
         // Open PUB socket
 
-        var socket: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+        var socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
             var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
+            break:socket try b.as_listener(url);
         };
         try socket.transport.start(.{});
         defer socket.close();
+
+        // Open SUB socket
+
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
 
         var iter = socket.pipe.iter();
         pipe: {
@@ -153,35 +153,28 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.as_listener(url);
-        };
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
-        // try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
-
         // PUB socket
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+        var pub_socket1: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
             var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
+            break:socket try b.as_listener(url);
         };
         try pub_socket1.transport.start(.{});
         defer pub_socket1.close();
 
+        // SUB socket
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
+
+        // try test_support.waitPipeReady(std.testing.io, pub_socket.transport.socket);
         // try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
         // get pipe
-        var pub_pipe = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var sub_pipe = iter: {
-            var iter = sub_socket.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
+        var pub_pipe = pub_socket1.pipe.item;
+        var sub_pipe = sub_socket.pipe.item;
 
         var msg = try Message.create();
 
@@ -205,63 +198,68 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
+        // PUB socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
             break:socket try b.as_listener(url);
         };
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
 
-        var view = sub_socket.subscriptionView();
-        try view.enableWildcard();
-
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
-        // PUB socket#1
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
+        // SUB socket#1
+        var sub_socket_1: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
+        subscribe: {
+            var view = sub_socket_1.subscriptionView();
+            try view.enableWildcard();
+            break:subscribe;
+        }
 
-        // PUB socket#2
-        var pub_socket2: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
+        try sub_socket_1.transport.start(.{});
+        defer sub_socket_1.close();
+
+        // SUB socket#2
+        var sub_socket_2: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try pub_socket2.transport.start(.{});
-        defer pub_socket2.close();
+        subscribe: {
+            var view = sub_socket_2.subscriptionView();
+            try view.enableWildcard();
+            break:subscribe;
+        }
+
+        try sub_socket_2.transport.start(.{});
+        defer sub_socket_2.close();
 
         // get pipe
-        const pub_pipe1 = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        const pub_pipe2 = iter: {
-            var iter = pub_socket2.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        const sub_pipe = iter: {
-            var iter = sub_socket.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
+        const pub_pipe = pub_socket.pipe.item;
+        const sub_pipe1 = sub_socket_1.pipe.item;
+        const sub_pipe2 = sub_socket_2.pipe.item;
 
         send_PUB_1: {
             var msg = try Message.create();
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe1.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_1;
         }
-
-        recv_sub: {
-            var msg = try sub_pipe.receiver().drain(.{});
+        recv_SUB_1: {
+            var msg = try sub_pipe1.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
-            break:recv_sub;
+            break:recv_SUB_1;
+        }
+        recv_SUB_2: {
+            var msg = try sub_pipe2.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
+            break:recv_SUB_2;
         }
 
         send_PUB_2: {
@@ -269,15 +267,22 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe2.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_2;
         }
-        recv_sub: {
-            var msg = try sub_pipe.receiver().drain(.{});
+        recv_SUB_1: {
+            var msg = try sub_pipe1.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub;
+            break:recv_SUB_1;
+        }
+        recv_SUB_2: {
+            var msg = try sub_pipe2.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("hobby|Soccor", v);
+            break:recv_SUB_2;
         }
     }
 
@@ -290,58 +295,64 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // Open SUB socket
-        var sub_protocol: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
+        // open PUB socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
             break:socket try b.as_listener(url);
         };
-        var view = sub_protocol.subscriptionView();
-        try view.subscribe("hobby");
-        try sub_protocol.transport.start(.{});
-        defer sub_protocol.close();
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
 
-        // open PUB socket#1
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
+        // Open SUB socket#1
+        var sub_socket1: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
+        subscribe: {
+            var view = sub_socket1.subscriptionView();
+            try view.subscribe("hobby");
+            break:subscribe;
+        }
+        try sub_socket1.transport.start(.{});
+        defer sub_socket1.close();
 
-        // open PUB socket#2
-        var pub_socket2: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
+        // open SUB socket#2
+        var sub_socket2: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
             break:socket try b.as_dialer(url);
         };
-        try pub_socket2.transport.start(.{});
-        defer pub_socket2.close();
+        subscribe: {
+            var view = sub_socket2.subscriptionView();
+            try view.subscribe("greeting");
+            break:subscribe;
+        }
+        try sub_socket2.transport.start(.{});
+        defer sub_socket2.close();
 
         // get pipe
-        const pub_pipe1 = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        const pub_pipe2 = iter: {
-            var iter = pub_socket2.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        const sub_pipe = iter: {
-            var iter = sub_protocol.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
+        const pub_pipe = pub_socket.pipe.item;
+        const sub_pipe1 = sub_socket1.pipe.item;
+        const sub_pipe2 = sub_socket2.pipe.item;
 
         send_PUB_1: {
             var msg = try Message.create();
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe1.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_1;
         }
-        recv_sub: {
-            const msg = sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+        recv_SUB_1: {
+            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
             try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub;
+            break:recv_SUB_1;
+        }
+        recv_SUB_2: {
+            var msg = try sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
+            break:recv_SUB_2;
         }
 
         send_PUB_2: {
@@ -349,15 +360,20 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe2.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_2;
         }
-        recv_sub: {
-            var msg = try sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+        recv_SUB_1: {
+            var msg = try sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub;
+            break:recv_SUB_1;
+        }
+        recv_SUB_2: {
+            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            try std.testing.expectError(error.Timeout, msg);
+            break:recv_SUB_2;
         }
     }
 
@@ -370,51 +386,64 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.as_listener(url);
-        };
-
-        var view = sub_socket.subscriptionView();
-        try view.enableWildcard();
-        try view.subscribe("greeting");
-
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
         // PUB socket
-        var pub_socket: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
             var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
+            break:socket try b.as_listener(url);
         };
         try pub_socket.transport.start(.{});
         defer pub_socket.close();
 
-        // get pipe
-        const pub_pipe = iter: {
-            var iter = pub_socket.pipe.iter();
-            break:iter iter.next() orelse unreachable;
+        // SUB socket
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url);
         };
-        const sub_pipe = iter: {
-            var iter = sub_socket.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
+        subscribe: {
+            var view = sub_socket.subscriptionView();
+            try view.enableWildcard();
+            try view.subscribe("greeting");
+            break:subscribe;
+        }
 
-        send_PUB_2: {
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
+
+        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
+
+        // get pipe
+        const pub_pipe = pub_socket.pipe.item;
+        const sub_pipe = sub_socket.pipe.item;
+
+        send_PUB_1: {
             var msg = try Message.create();
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
             try pub_pipe.sender().submit(msg, .{});
-            break:send_PUB_2;
+            break:send_PUB_1;
         }
-        recv_sub: {
+        recv_SUB: {
             var msg = try sub_pipe.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub;
+            break:recv_SUB;
+        }
+        send_PUB_2: {
+            var msg = try Message.create();
+            const v0 = "greeting|Hello";
+            try msg.writer.writeAll(v0);
+            try msg.writer.flush(); // Need to sync written length
+            try pub_pipe.sender().submit(msg, .{});
+            break:send_PUB_2;
+        }
+        recv_SUB: {
+            var msg = try sub_pipe.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
+            break:recv_SUB;
         }
     }
 
@@ -427,146 +456,49 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
-            var b = try Sub.open(ctx);
+        // PUB socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
             break:socket try b.as_listener(url);
         };
-        var view = sub_socket.subscriptionView();
-        try view.subscribe("greeting");
-        try view.unsubscribe("greeting");
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
+
+        try test_support.waitPipeReady(std.testing.io, pub_socket.transport.socket);
+
+        // SUB socket
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        subscribe: {
+            var view = sub_socket.subscriptionView();
+            try view.subscribe("greeting");
+            try view.unsubscribe("greeting");
+            break:subscribe;
+        }
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
 
         try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
-        // PUB socket
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
-
-        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
-
         // get pipe
-        var pub_pipe = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var sub_pipe = iter: {
-            var iter = sub_socket.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
+        var pub_pipe = pub_socket.pipe.item;
+        var sub_pipe = sub_socket.pipe.item;
 
         var msg = try Message.create();
 
-        // PUB (send)
-        const v0 = "greeting|Hello";
-        try msg.writer.writeAll(v0);
-        try msg.writer.flush(); // Need to sync written length
-        try pub_pipe.sender().submit(msg, .{});
-
-        // SUB (recv)
-        const recv_msg = sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMicroseconds(10)});
-        try std.testing.expectError(error.Timeout, recv_msg);
-    }
-
-    test "Wildcard for prallel pipe lane" {
-        var tmp = std.testing.tmpDir(.{});
-        defer tmp.cleanup();
-        const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
-        defer std.testing.allocator.free(url);
-        defer test_support.cleanup();
-
-        const ctx = Context.init(std.testing.io, std.testing.allocator);
-
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.parallel(2).as_listener(url);
-        };
-
-        var view = sub_socket.subscriptionView().lane_at(1);
-        try view.enableWildcard();
-
-        try sub_socket.transport.start(.{});
-        defer sub_socket.close();
-
-        // PUB socket#1
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
-
-        // PUB socket#2
-        var pub_socket2: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket2.transport.start(.{});
-        defer pub_socket2.close();
-
-        // get pipe
-        var pub_pipe1 = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var pub_pipe2 = iter: {
-            var iter = pub_socket2.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var sub_pipe1 = iter: {
-            break:iter sub_socket.pipe.items[0];
-        };
-        var sub_pipe2 = iter: {
-            break:iter sub_socket.pipe.items[1];
-        };
-
-        send_PUB_1: {
-            var msg = try Message.create();
+        send_PUB: {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe1.sender().submit(msg, .{});
-            break:send_PUB_1;
+            try pub_pipe.sender().submit(msg, .{});
+            break:send_PUB;
         }
-
-        recv_sub_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
-            try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_1;
-        }
-        recv_sub_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
-            defer msg.deinit();
-            const v = msg.bytes();
-            try std.testing.expectEqualStrings("greeting|Hello", v);
-            break:recv_sub_2;
-        }
-
-        send_PUB_2: {
-            var msg = try Message.create();
-            const v0 = "hobby|Soccor";
-            try msg.writer.writeAll(v0);
-            try msg.writer.flush(); // Need to sync written length
-            try pub_pipe2.sender().submit(msg, .{});
-            break:send_PUB_2;
-        }
-        recv_sub_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
-            try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_1;
-        }
-        recv_sub_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
-            defer msg.deinit();
-            const v = msg.bytes();
-            try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub_2;
+        recv_SUB: {
+            const recv_msg = sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMicroseconds(10)});
+            try std.testing.expectError(error.Timeout, recv_msg);
+            break:recv_SUB;
         }
     }
 
@@ -579,65 +511,69 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // Open SUB socket
-        var sub_protocol: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
+        // PUB socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
+
+        // SUB socket#1
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Parallel) = socket: {
             var b = try Sub.open(ctx);
-            break:socket try b.parallel(3).as_listener(url);
+            break:socket try b.parallel(3).as_dialer(url);
         };
-        var view = sub_protocol.subscriptionView().lane_at(1);
-        try view.subscribe("hobby");
-        try sub_protocol.transport.start(.{});
-        defer sub_protocol.close();
+        subscribe_1: {
+            // noop
+            break:subscribe_1;
+        }
+        subscribe_2: {
+            var view = sub_socket.subscriptionView().lane_at(1);
+            try view.enableWildcard();
+            break:subscribe_2;
+        }
+        subscribe_3: {
+            var view = sub_socket.subscriptionView().lane_at(2);
+            try view.subscribe("hobby");
+            break:subscribe_3;
+        }
 
-        // open PUB socket#1
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
 
-        // open PUB socket#2
-        var pub_socket2: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket2.transport.start(.{});
-        defer pub_socket2.close();
+        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
         // get pipe
-        const pub_pipe1 = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        const pub_pipe2 = iter: {
-            var iter = pub_socket2.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var sub_pipe1 = iter: {
-            break:iter sub_protocol.pipe.items[0];
-        };
-        var sub_pipe2 = iter: {
-            break:iter sub_protocol.pipe.items[1];
-        };
+        var pub_pipe = pub_socket.pipe.item;
+        var sub_pipe1 = sub_socket.pipe.items[0];
+        var sub_pipe2 = sub_socket.pipe.items[1];
+        var sub_pipe3 = sub_socket.pipe.items[2];
 
         send_PUB_1: {
             var msg = try Message.create();
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe1.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_1;
         }
-        recv_sub_1: {
+        recv_SUB_1: {
             const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
             try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_1;
+            break:recv_SUB_1;
         }
-        recv_sub_2: {
-            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+        recv_SUB_2: {
+            var msg = try sub_pipe2.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
+            break:recv_SUB_2;
+        }
+        recv_SUB_3: {
+            const msg = sub_pipe3.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
             try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_2;
+            break:recv_SUB_3;
         }
 
         send_PUB_2: {
@@ -645,7 +581,7 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe2.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_2;
         }
         recv_sub_1: {
@@ -654,11 +590,18 @@ pub const tests = struct {
             break:recv_sub_1;
         }
         recv_sub_2: {
-            var msg = try sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            var msg = try sub_pipe2.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
             break:recv_sub_2;
+        }
+        recv_sub_3: {
+            var msg = try sub_pipe3.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("hobby|Soccor", v);
+            break:recv_sub_3;
         }
     }
 
@@ -671,40 +614,41 @@ pub const tests = struct {
 
         const ctx = Context.init(std.testing.io, std.testing.allocator);
 
-        // SUB socket
-        var sub_socket: Sub.Protocol(Transport.Listener, Pipe.Parallel) = socket: {
-            var b = try Sub.open(ctx);
-            break:socket try b.parallel(3).as_listener(url);
+        // PUB socket
+        var pub_socket: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
+            break:socket try b.as_listener(url);
         };
-        var view = sub_socket.subscriptionView();
-        try view.subscribe("greeting");
-        try view.unsubscribe("greeting");
+        try pub_socket.transport.start(.{});
+        defer pub_socket.close();
+
+        try test_support.waitPipeReady(std.testing.io, pub_socket.transport.socket);
+
+        // SUB socket
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Parallel) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.parallel(3).as_dialer(url);
+        };
+        subscribe_1: {
+            var view = sub_socket.subscriptionView().lane_at(0);
+            try view.subscribe("greeting");
+            try view.unsubscribe("greeting");
+            break:subscribe_1;
+        }
+        subscribe_2: {
+            var view = sub_socket.subscriptionView().lane_at(1);
+            try view.subscribe("greeting");
+            break:subscribe_2;
+        }
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
 
         try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
-        // PUB socket
-        var pub_socket1: Pub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
-            var b = try Pub.open(ctx);
-            break:socket try b.as_dialer(url);
-        };
-        try pub_socket1.transport.start(.{});
-        defer pub_socket1.close();
-
-        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
-
         // get pipe
-        var pub_pipe = iter: {
-            var iter = pub_socket1.pipe.iter();
-            break:iter iter.next() orelse unreachable;
-        };
-        var sub_pipe1 = iter: {
-            break:iter sub_socket.pipe.items[0];
-        };
-        var sub_pipe2 = iter: {
-            break:iter sub_socket.pipe.items[1];
-        };
+        var pub_pipe = pub_socket.pipe.item;
+        var sub_pipe1 = sub_socket.pipe.items[0];
+        var sub_pipe2 = sub_socket.pipe.items[1];
 
         send_PUB: {
             var msg = try Message.create();
@@ -721,8 +665,10 @@ pub const tests = struct {
             break:recv_sub_1;
         }
         recv_sub_2: {
-            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
-            try std.testing.expectError(error.Timeout, msg);
+            var msg = try sub_pipe2.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
             break:recv_sub_2;
         }
     }
