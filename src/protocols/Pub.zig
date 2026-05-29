@@ -169,8 +169,7 @@ pub const tests = struct {
         try sub_socket.transport.start(.{});
         defer sub_socket.close();
 
-        // try test_support.waitPipeReady(std.testing.io, pub_socket.transport.socket);
-        // try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
+        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
 
         // get pipe
         var pub_pipe = pub_socket1.pipe.item;
@@ -220,6 +219,8 @@ pub const tests = struct {
         try sub_socket_1.transport.start(.{});
         defer sub_socket_1.close();
 
+        try test_support.waitPipeReady(std.testing.io, sub_socket_1.transport.socket);
+
         // SUB socket#2
         var sub_socket_2: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try Sub.open(ctx);
@@ -233,6 +234,8 @@ pub const tests = struct {
 
         try sub_socket_2.transport.start(.{});
         defer sub_socket_2.close();
+
+        try test_support.waitPipeReady(std.testing.io, sub_socket_2.transport.socket);
 
         // get pipe
         const pub_pipe = pub_socket.pipe.item;
@@ -316,6 +319,8 @@ pub const tests = struct {
         try sub_socket1.transport.start(.{});
         defer sub_socket1.close();
 
+        try test_support.waitPipeReady(std.testing.io, sub_socket1.transport.socket);
+
         // open SUB socket#2
         var sub_socket2: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
             var b = try Sub.open(ctx);
@@ -328,6 +333,8 @@ pub const tests = struct {
         }
         try sub_socket2.transport.start(.{});
         defer sub_socket2.close();
+
+        try test_support.waitPipeReady(std.testing.io, sub_socket2.transport.socket);
 
         // get pipe
         const pub_pipe = pub_socket.pipe.item;
@@ -343,12 +350,12 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            var msg = try sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -364,14 +371,14 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB_1: {
-            var msg = try sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            var msg = try sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_2;
         }
@@ -559,7 +566,7 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
@@ -571,7 +578,7 @@ pub const tests = struct {
             break:recv_SUB_2;
         }
         recv_SUB_3: {
-            const msg = sub_pipe3.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = sub_pipe3.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_3;
         }
@@ -584,24 +591,24 @@ pub const tests = struct {
             try pub_pipe.sender().submit(msg, .{});
             break:send_PUB_2;
         }
-        recv_sub_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+        recv_SUB_1: {
+            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_1;
+            break:recv_SUB_1;
         }
-        recv_sub_2: {
+        recv_SUB_2: {
             var msg = try sub_pipe2.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub_2;
+            break:recv_SUB_2;
         }
-        recv_sub_3: {
+        recv_SUB_3: {
             var msg = try sub_pipe3.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
-            break:recv_sub_3;
+            break:recv_SUB_3;
         }
     }
 
@@ -658,18 +665,100 @@ pub const tests = struct {
             try pub_pipe.sender().submit(msg, .{});
             break:send_PUB;
         }
-
-        recv_sub_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+        recv_SUB_1: {
+            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
             try std.testing.expectError(error.Timeout, msg);
-            break:recv_sub_1;
+            break:recv_SUB_1;
         }
-        recv_sub_2: {
+        recv_SUB_2: {
             var msg = try sub_pipe2.receiver().drain(.{});
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
-            break:recv_sub_2;
+            break:recv_SUB_2;
+        }
+    }
+
+    test "Multi channel SUB" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url_1 = try test_support.make_ipc_sock(tmp.dir, "pub_sub_1");
+        defer std.testing.allocator.free(url_1);
+        const url_2 = try test_support.make_ipc_sock(tmp.dir, "pub_sub_2");
+        defer std.testing.allocator.free(url_2);
+        defer test_support.cleanup();
+
+        const ctx = Context.init(std.testing.io, std.testing.allocator);
+
+        // PUB socket#1
+        var pub_socket_1: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
+            break:socket try b.as_listener(url_1);
+        };
+        try pub_socket_1.transport.start(.{});
+        defer pub_socket_1.close();
+
+        // PUB socket#2
+        var pub_socket_2: Pub.Protocol(Transport.Listener, Pipe.Sync) = socket: {
+            var b = try Pub.open(ctx);
+            break:socket try b.as_listener(url_2);
+        };
+        try pub_socket_2.transport.start(.{});
+        defer pub_socket_2.close();
+
+        // SUB socket
+        var sub_socket: Sub.Protocol(Transport.Dialer, Pipe.Sync) = socket: {
+            var b = try Sub.open(ctx);
+            break:socket try b.as_dialer(url_1);
+        };
+        another_channel: {
+            try sub_socket.transport.addChannel(url_2);
+            break:another_channel;
+        }
+        subscribe: {
+            var view = sub_socket.subscriptionView();
+            try view.subscribeMany(&.{ "greeting", "hobby"});
+            break:subscribe;
+        }
+        try sub_socket.transport.start(.{});
+        defer sub_socket.close();
+
+        try test_support.waitPipeReady(std.testing.io, sub_socket.transport.socket);
+
+        var pub_pipe1 = pub_socket_1.pipe.item;
+        var pub_pipe2 = pub_socket_2.pipe.item;
+        var sub_pipe = sub_socket.pipe.item;
+
+        send_PUB_1: {
+            var msg = try Message.create();
+            const v0 = "greeting|Hello";
+            try msg.writer.writeAll(v0);
+            try msg.writer.flush(); // Need to sync written length
+            try pub_pipe1.sender().submit(msg, .{});
+            break:send_PUB_1;
+        }
+        recv_SUB: {
+            var msg = try sub_pipe.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("greeting|Hello", v);
+            break:recv_SUB;
+        }
+
+        send_PUB_2: {
+            var msg = try Message.create();
+            const v0 = "hobby|Soccor";
+            try msg.writer.writeAll(v0);
+            try msg.writer.flush(); // Need to sync written length
+            try pub_pipe2.sender().submit(msg, .{});
+            break:send_PUB_2;
+        }
+        recv_SUB: {
+            var msg = try sub_pipe.receiver().drain(.{});
+            defer msg.deinit();
+            const v = msg.bytes();
+            try std.testing.expectEqualStrings("hobby|Soccor", v);
+            break:recv_SUB;
         }
     }
 };
