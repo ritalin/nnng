@@ -7,6 +7,7 @@ pub const Socket = @import("./socket/Socket.zig");
 pub const Transport = @import("./socket/Transport.zig");
 pub const Pipe = @import("./socket/Pipe.zig");
 pub const Message = @import("./message/Message.zig");
+pub const PipeLock = @import("./socket/Pipe.zig").Lock;
 
 pub const PipeSender = @import("./message/Sender.zig");
 pub const PipeReceiver = @import("./message/Receiver.zig");

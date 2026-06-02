@@ -6,16 +6,35 @@ const root = @import("../root.zig");
 const Socket = root.Socket;
 const Message = root.Message;
 const SendError = root.SendError;
+const PipeLock = root.PipeLock;
+
+/// Sends a Message to the underlying transport.
+///
+/// This operation is transport-level only.
+/// It does not inspect or modify Message contents.
+///
+/// The Message must be fully prepared before submission.
+/// Ownership is transferred at submit time.
+///
+/// A Sender may be shared across threads. Use lock() to serialize
+/// submit operations when multiple threads access the same Sender.
+///
+/// submit() is atomic with respect to a single Message submission.
+/// 
 
 owner: *const anyopaque,
-on_submit: *const fn (sender: *const Sender, msg: Message, options: Options) SendError!void,
+vtable: VTable,
 
 const Self = @This();
 const Sender = Self;
 
 /// Sends a message.
 pub fn submit(self: *const Self, msg: Message, options: Options) SendError!void {
-    return (self.on_submit)(self, msg, options);
+    return (self.vtable.on_submit)(self, msg, options);
+}
+
+pub fn lock(self: *const Self) PipeLock {
+    return (self.vtable.on_lock_pipe(self));
 }
 
 pub const Option = enum {
@@ -29,4 +48,9 @@ pub const Options = struct {
 
     /// Flag set for send operations.
     pub const Flags = std.enums.EnumFieldStruct(Option, bool, false);
+};
+
+const VTable = struct {
+    on_submit: *const fn (sender: *const Sender, msg: Message, options: Options) SendError!void,
+    on_lock_pipe: *const fn (sender: *const Sender) PipeLock,
 };

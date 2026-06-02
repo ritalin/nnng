@@ -5,6 +5,7 @@ const poller_impl = @import("./poller_impls.zig");
 
 const Context = root.Context;
 const Pipe = root.Pipe;
+const PipeLock = root.PipeLock;
 const Sender = @import("../message/Sender.zig");
 const Receiver = @import("../message/Receiver.zig");
 const Message = root.Message;
@@ -120,7 +121,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
         pub fn cancel(self: *Poller, id: u64) void {
             if (self.poller_pipes.get(id)) |pipe| {
-                std.log.debug("Poller:cancel/id: {}", .{id});
+                std.log.scoped(.nnng).debug("Poller:cancel/id: {}", .{id});
                 pipe.cancel();
             }
         }
@@ -144,11 +145,11 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
 
         fn attachInternal(self: *Poller, id: u64, channel: poller_impl.PollerPipe) !void {
             if (self.ready_set.contains(id) or self.in_fight_set.contains(id)) {
-                std.log.warn("Poller:already attached/id: {}", .{id});
+                std.log.scoped(.nnng).warn("Poller:already attached/id: {}", .{id});
                 return;
             }
 
-            std.log.debug("Poller:attach/id: {}", .{id});
+            std.log.scoped(.nnng).debug("Poller:attach/id: {}", .{id});
 
             try self.poller_pipes.put(id, channel);
 
@@ -274,6 +275,7 @@ pub const ReadyChannel = struct {
     vtable: struct {
         on_submit: *const fn (sender: *const Sender, msg: Message, options: Sender.Options) SendError!void,
         on_drain: *const fn (receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message,
+        on_lock_pipe: *const fn (sender: *const Sender) PipeLock,
     },
     features: Pipe.Features,
 
@@ -282,13 +284,19 @@ pub const ReadyChannel = struct {
             .sync => |*impl| {
                 return .{
                     .owner = impl,
-                    .on_submit = self.vtable.on_submit,
+                    .vtable = .{
+                        .on_submit =  self.vtable.on_submit,
+                        .on_lock_pipe = self.vtable.on_lock_pipe,
+                    },
                 };
             },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
-                    .on_submit = self.vtable.on_submit,
+                    .vtable = .{
+                        .on_submit =  self.vtable.on_submit,
+                        .on_lock_pipe = self.vtable.on_lock_pipe,
+                    },
                 };
             },
         }

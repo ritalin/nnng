@@ -63,6 +63,7 @@ pub const Sync = struct {
         socket: Socket,
         features: Features,
         aio_slot: AioSlot,
+        fsm: *AioStateMachine,
 
         // Internal
         pub fn create(socket: Socket, features: Features) AioPipeError!*Item {
@@ -75,11 +76,14 @@ pub const Sync = struct {
                 return errors.aio_pipe_error(@intCast(err));
             }
 
+            const fsm = try AioStateMachine.create(socket.context.io, socket.context.allocator);
+
             self.* = .{
                 .id = impl.PipeIdCounter.next(),
                 .socket = socket,
                 .features = features,
-                .aio_slot = .{ .raw_aio = raw_aio.? },
+                .aio_slot = .{ .raw_aio = fsm.raw_aio },
+                .fsm = fsm,
             };
 
             return self;
@@ -87,8 +91,9 @@ pub const Sync = struct {
 
         // Internal
         pub fn deinit(self: *@This()) void {
+            std.debug.print("*** PUSH socket/aio = {}", .{c.nng_aio_busy(self.aio_slot.raw_aio)});
             c.nng_aio_stop(self.aio_slot.raw_aio);
-            c.nng_aio_free(self.aio_slot.raw_aio);
+            self.fsm.deinit(self.socket.context.allocator);
             self.socket.context.allocator.destroy(self);
         }
 
@@ -96,7 +101,10 @@ pub const Sync = struct {
         pub fn sender(self: *const @This()) Sender {
             return .{
                 .owner = self,
-                .on_submit = impl.SyncSenderImpl.submit_message,
+                .vtable = .{
+                    .on_submit = impl.SyncSenderImpl.submit_message,
+                    .on_lock_pipe = impl.SyncSenderImpl.lock_pipe,
+                },
             };
         }
 
@@ -234,7 +242,10 @@ pub const Parallel = struct {
         pub fn sender(self: *const @This()) Sender {
             return .{
                 .owner = self,
-                .on_submit = impl.ParallelSenderImpl.submit_message,
+                .vtable = .{
+                    .on_submit = impl.ParallelSenderImpl.submit_message,
+                    .on_lock_pipe =     impl.ParallelSenderImpl.lock_pipe,
+                },
             };
         }
 
@@ -262,6 +273,14 @@ pub const Parallel = struct {
             return errors.aio_pipe_error(err);
         }
     };
+};
+
+pub const Lock = struct {
+    mutex: *c.nng_mtx,
+
+    pub fn unlock(self: *const Lock) void {
+        c.nng_mtx_unlock(self.mutex);
+    }
 };
 
 pub const CancelOption = enum {

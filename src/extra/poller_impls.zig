@@ -9,6 +9,7 @@ const Receiver = @import("../message/Receiver.zig");
 const ReadyChannel = @import("./poller.zig").ReadyChannel;
 
 const Pipe = root.Pipe;
+const PipeLock = root.PipeLock;
 const Message = root.Message;
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
@@ -59,7 +60,7 @@ pub const PollerPipeImpl = union(enum) {
             c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
             c.nng_aio_wait(pipe.aio_slot.raw_aio);
 
-            std.log.debug("Poller-awake:Sync/id: {}", .{ pipe.id });
+            std.log.scoped(.nnng).debug("Poller-awake:Sync/id: {}", .{ pipe.id });
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
@@ -76,6 +77,7 @@ pub const PollerPipeImpl = union(enum) {
                 .vtable = .{
                     .on_submit = Self.submitMessage,
                     .on_drain = Self.drainMessage,
+                    .on_lock_pipe = Self.lockSendPipe,
                 },
                 .features = pipe.features,
             };
@@ -91,7 +93,10 @@ pub const PollerPipeImpl = union(enum) {
 
             const sender: Sender = .{
                 .owner = self.pipe,
-                .on_submit = sender0.on_submit,
+                .vtable = .{
+                    .on_submit = sender0.vtable.on_submit,
+                    .on_lock_pipe = sender0.vtable.on_lock_pipe,
+                },
             };
 
             return pipe_impl.SyncSenderImpl.submit_message(&sender, msg, options);
@@ -107,10 +112,22 @@ pub const PollerPipeImpl = union(enum) {
                 return errors.receive_error(@intCast(err));
             }
 
-            std.log.debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
+            std.log.scoped(.nnng).debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
 
             const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
+        }
+
+        pub fn lockSendPipe(receiver: *const Sender) PipeLock {
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+
+            return self.pipe.fsm.lock();
+        }
+
+        pub fn lockReceivePipe(receiver: *const Receiver) PipeLock {
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+
+            return self.pipe.fsm.lock();
         }
     };
 
@@ -132,7 +149,7 @@ pub const PollerPipeImpl = union(enum) {
             c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
             try pipe.fsm.wait();
 
-            std.log.debug("Poller-awake:Parallel/id: {}", .{ pipe.id });
+            std.log.scoped(.nnng).debug("Poller-awake:Parallel/id: {}", .{ pipe.id });
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
@@ -150,6 +167,7 @@ pub const PollerPipeImpl = union(enum) {
                 .vtable = .{
                     .on_submit = Self.submitMessage,
                     .on_drain = Self.drainMessage,
+                    .on_lock_pipe = Self.lockSenderPipe,
                 },
                 .features = pipe.features,
             };
@@ -165,7 +183,10 @@ pub const PollerPipeImpl = union(enum) {
 
             const sender: Sender = .{
                 .owner = self.pipe,
-                .on_submit = sender0.on_submit,
+                .vtable = .{
+                    .on_submit = sender0.vtable.on_submit,
+                    .on_lock_pipe = sender0.vtable.on_lock_pipe,
+                },
             };
 
             return pipe_impl.ParallelSenderImpl.submit_message(&sender, msg, options);
@@ -180,10 +201,15 @@ pub const PollerPipeImpl = union(enum) {
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
-            std.log.debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
+            std.log.scoped(.nnng).debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
 
             const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             return Message.fromRaw(raw_msg.?);
+        }
+
+        pub fn lockSenderPipe(receiver: *const Sender) PipeLock {
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+            return self.pipe.fsm.lock();
         }
     };
 };
