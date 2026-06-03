@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("c");
 
-const ReceiveOptions = @import("./Receiver.zig").Options;
+const ReceiveOptions = @import("./receivers.zig").Receiver.Options;
 
 pub const AioSlot = struct {
     raw_aio: *c.nng_aio,

@@ -12,7 +12,7 @@ const c = @import("c");
 const Socket = @import("./Socket.zig");
 const Sender = @import("../message/Sender.zig");
 const Message = @import("../message/Message.zig");
-const Receiver = @import("../message/Receiver.zig");
+const PipeReceiver = root.PipeReceiver;
 const AioSlot = @import("../message/message_impl.zig").AioSlot;
 const AioStateMachine = @import("./aio_fsm.zig").StateMachine;
 
@@ -91,7 +91,6 @@ pub const Sync = struct {
 
         // Internal
         pub fn deinit(self: *@This()) void {
-            std.debug.print("*** PUSH socket/aio = {}", .{c.nng_aio_busy(self.aio_slot.raw_aio)});
             c.nng_aio_stop(self.aio_slot.raw_aio);
             self.fsm.deinit(self.socket.context.allocator);
             self.socket.context.allocator.destroy(self);
@@ -109,7 +108,7 @@ pub const Sync = struct {
         }
 
         /// Returns a receiver for this pipe.
-        pub fn receiver(self: *@This()) Receiver {
+        pub fn receiver(self: *@This()) PipeReceiver {
             return .{
                 .owner = self,
                 .slot = &self.aio_slot,
@@ -250,7 +249,7 @@ pub const Parallel = struct {
         }
 
         /// Returns a receiver for this pipe.
-        pub fn receiver(self: *@This()) Receiver {
+        pub fn receiver(self: *@This()) PipeReceiver {
             return .{
                 .owner = self,
                 .slot = &self.aio_slot,

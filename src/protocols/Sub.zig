@@ -100,7 +100,7 @@ pub const tests = struct {
 
     const Message = @import("../message/Message.zig");
     const Sender = @import("../message/Sender.zig");
-    const Receiver = @import("../message/Receiver.zig");
+    const PipeReceiver = root.PipeReceiver;
 
     test "new SUB socket" {
         var tmp = std.testing.tmpDir(.{});

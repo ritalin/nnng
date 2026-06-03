@@ -5,7 +5,7 @@ const c = @import("c");
 
 const Message = root.Message;
 const Sender = @import("../message/Sender.zig");
-const Receiver = @import("../message/Receiver.zig");
+const PipeReceiver = root.PipeReceiver;
 const PipeLock = root.PipeLock;
 
 pub const PipeIdCounter = struct {
@@ -20,8 +20,7 @@ pub const SyncSenderImpl = struct {
     pub fn submit_message(sender: *const Sender, msg: Message, options: Sender.Options) root.SendError!void {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(sender.owner));
 
-        // std.log.scoped(.nnng).debug("Start sending:Sync/id: {}, socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.id, pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
-        std.debug.print("Start sending:Sync/id: {}, socket: {}, flags: {}, len(edit): {}, len(commit): {}, busy: {}\n", .{pipe.id, pipe.socket.raw_socket, options, msg.writer.end, msg.len(), c.nng_aio_busy(pipe.aio_slot.raw_aio)});
+        std.log.scoped(.nnng).debug("Start sending:Sync/id: {}, socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.id, pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
 
         c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
         c.nng_send_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
@@ -43,7 +42,7 @@ pub const SyncSenderImpl = struct {
 };
 
 pub const SyncReceiverImpl = struct {
-    pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
+    pub fn drain_message(receiver: *const PipeReceiver, options: PipeReceiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Sync.Item = @ptrCast(@alignCast(receiver.owner));
 
         try receiver.slot.storeReceiveOpion(options);
@@ -109,7 +108,7 @@ pub const ParallelSenderImpl = struct {
 };
 
 pub const ParallelReceiverImpl = struct {
-    pub fn drain_message(receiver: *const Receiver, options: Receiver.Options) root.ReceiveError!Message {
+    pub fn drain_message(receiver: *const PipeReceiver, options: PipeReceiver.Options) root.ReceiveError!Message {
         const pipe: *const root.Pipe.Parallel.Item = @ptrCast(@alignCast(receiver.owner));
 
         try receiver.slot.storeReceiveOpion(options);

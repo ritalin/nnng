@@ -6,12 +6,33 @@ const poller_impl = @import("./poller_impls.zig");
 const Context = root.Context;
 const Pipe = root.Pipe;
 const PipeLock = root.PipeLock;
-const Sender = @import("../message/Sender.zig");
-const Receiver = @import("../message/Receiver.zig");
+const PipeSender = root.PipeSender;
+const TryPipeReceiver = root.TryPipeReceiver;
 const Message = root.Message;
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
 
+/// Attaches a Pipe to a synchronous Poller.
+///
+/// ## Behavior
+/// The Poller drives all execution for the attached Pipe in a single loop.
+///
+/// Message delivery is strictly serialized.
+///
+/// ## Concurrency model
+/// Single execution flow.
+///
+/// Only the Poller interacts with the Pipe during execution.
+///
+/// ## External interaction
+/// External `drain()` calls are allowed but not coordinated with Poller execution.
+///
+/// Concurrent execution may result in undefined behavior if both paths
+/// attempt to receive messages simultaneously.
+///
+/// ## Semantics
+/// This mode assumes Poller is the primary execution driver.
+/// 
 pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
     return struct {
         context: Context,
@@ -158,6 +179,17 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             }
         }
 
+        /// Attaches a socket-backed Pipe to the Poller in synchronous mode.
+        ///
+        /// ## Execution model
+        /// Execution is driven sequentially by the Poller for a single socket stream.
+        ///
+        /// ## External interaction
+        /// External Receiver usage is allowed but not coordinated with Poller execution.
+        ///
+        /// Concurrent receive operations are not synchronized and may result in
+        /// undefined ordering.
+        /// 
         pub const Sync = struct {
             pub fn attach(poller: *Poller, pipe: *Pipe.Sync) !void {
                 var iter = pipe.iter();
@@ -177,6 +209,16 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
             }
         };
 
+        /// Attaches a context-backed Pipe to the Poller in parallel mode.
+        ///
+        /// ## Execution model
+        /// Execution is driven concurrently across multiple contexts.
+        ///
+        /// ## External interaction
+        /// External Receiver usage is allowed but not synchronized with Poller execution.
+        ///
+        /// Concurrent receive operations are not synchronized and ordering is undefined.
+        /// 
         pub const Parallel = struct {
             pub fn attach(poller: *Poller, pipe: *Pipe.Parallel) !void {
                 var iter = pipe.iter();
@@ -269,17 +311,26 @@ pub const Timeout = union {
     msec: u64,
 };
 
+/// ReadyChannel is a logical entry point for creating Sender/Receiver
+/// interfaces bound to an execution context.
+///
+/// ## Options behavior
+/// Options passed through Sender/Receiver construction are accepted
+/// for API compatibility but do not affect behavior in this mode.
+///
+/// The execution behavior is fixed by the underlying Poller configuration.
+/// 
 pub const ReadyChannel = struct {
     id: u64,
     impl: poller_impl.PollerPipeImpl,
     vtable: struct {
-        on_submit: *const fn (sender: *const Sender, msg: Message, options: Sender.Options) SendError!void,
-        on_drain: *const fn (receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message,
-        on_lock_pipe: *const fn (sender: *const Sender) PipeLock,
+        on_submit: *const fn (sender: *const PipeSender, msg: Message, options: PipeSender.Options) SendError!void,
+        on_try_drain: *const fn (receiver: *const TryPipeReceiver, options: TryPipeReceiver.Options) ReceiveError!?Message,
+        on_lock_pipe: *const fn (sender: *const PipeSender) PipeLock,
     },
     features: Pipe.Features,
 
-    pub fn sender(self: *const ReadyChannel) Sender {
+    pub fn sender(self: *const ReadyChannel) PipeSender {
         switch (self.impl) {
             .sync => |*impl| {
                 return .{
@@ -302,20 +353,20 @@ pub const ReadyChannel = struct {
         }
     }
 
-    pub fn receiver(self: *const ReadyChannel) Receiver {
+    pub fn receiver(self: *const ReadyChannel) TryPipeReceiver {
         switch (self.impl) {
             .sync => |*impl| {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_drain = self.vtable.on_drain,
+                    .on_try_drain = self.vtable.on_try_drain,
                 };
             },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_drain = self.vtable.on_drain,
+                    .on_try_drain = self.vtable.on_try_drain,
                 };
             },
         }
@@ -502,7 +553,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().drain(.{});
+                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -610,7 +661,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().drain(.{});
+                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -695,7 +746,7 @@ pub const tests = struct {
                 try std.testing.expectEqual(1, results.len);
                 try std.testing.expectEqual(.ready, std.meta.activeTag(results[0]));
 
-                var msg = try results[0].ready.receiver().drain(.{});
+                var msg = try results[0].ready.receiver().tryDrain(.{}) orelse unreachable;
                 try std.testing.expectEqualStrings("Hello World", msg.bytes());
 
                 msg.writer.advance(msg.len());
@@ -723,7 +774,7 @@ pub const tests = struct {
         try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
 
-    test "one to many communication for REQ/REP" {
+    test "one to many communication about REQ/REP" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "req_rep");
@@ -785,7 +836,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().drain(.{});
+                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -815,7 +866,120 @@ pub const tests = struct {
         }
     }
 
-    test "one to many communication for PUB/SUB" {
+    test "receive batch msg from poller about PUSH/PULL" {
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
+        defer std.testing.allocator.free(url);
+
+        const ctx = root.Context.init(std.testing.io, std.testing.allocator);
+
+        // Open PULL socket
+        var pull_socket = socket: {
+            var b = try root.Pull.open(ctx);
+            break:socket try b.as_listener(url);
+        };
+        try pull_socket.transport.start(.{});
+        defer pull_socket.close();
+
+        // Open PUSH socket
+        var push_socket = socket: {
+            var b = try root.Push.open(ctx);
+            break:socket try b.as_dialer(url);
+        };
+        try push_socket.transport.start(.{.nonblocking = false});
+        defer push_socket.close();
+
+        // get send pipe
+        var push_pipe = push_socket.pipe.item;
+
+        const sender = push_pipe.sender();
+        send: {
+            const g = sender.lock();
+            defer g.unlock();
+
+            var msg = try Message.create();
+            try msg.writer.writeAll("Foo");
+            try msg.writer.flush();
+            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            break:send;
+        }
+        send: {
+            const g = sender.lock();
+            defer g.unlock();
+
+            var msg = try Message.create();
+            try msg.writer.writeAll("Bar");
+            try msg.writer.flush();
+            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            break:send;
+        }
+
+        const PollCallback = struct {
+            allocator: std.mem.Allocator,
+            poller: TestPoller,
+            receive_queue: std.Deque(Message),
+
+            pub fn replyMsg(p: *TestPoller, results: []const PollEvent) anyerror!void {
+                const self: *@This() = @alignCast(@fieldParentPtr("poller", p));
+                try std.testing.expectEqual(0, p.skip_set.count());
+                try std.testing.expectEqual(1, p.ready_set.count() + p.in_fight_set.count());
+
+                test_unique_id: {
+                    var iter = p.ready_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.in_fight_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }
+                test_unique_id: {
+                    var iter = p.in_fight_set.keyIterator();
+                    while (iter.next()) |id| {
+                        try std.testing.expectEqual(false, p.ready_set.contains(id.*));
+                        break:test_unique_id;
+                    }
+                }                
+                try std.testing.expectEqual(p.ready_set.count(), results.len);
+                received: {
+                    for (results) |result| {
+                        try std.testing.expectEqual(.ready, std.meta.activeTag(result));
+                        const receiver = result.ready.receiver();
+                        while (try receiver.tryDrain(.{})) |msg| {
+                            try self.receive_queue.pushBack(self.allocator, msg);
+                        }
+                    }
+                    break:received;
+                }
+            }
+        };
+
+        var cb: PollCallback = .{
+            .allocator = std.testing.allocator,
+            .poller = try TestPoller.create(ctx),
+            .receive_queue = .empty,
+        };
+        defer cb.poller.deinit();
+        defer cb.receive_queue.deinit(std.testing.allocator);
+
+        try TestPoller.Sync.attach(&cb.poller, &pull_socket.pipe);
+        _ = try cb.poller.poll(PollCallback.replyMsg);
+
+        try std.testing.expectEqual(2, cb.receive_queue.len);
+        pop_msg: {
+            var msg = cb.receive_queue.popFront() orelse unreachable;
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("Foo", msg.bytes());
+            break:pop_msg;
+        }
+        pop_msg: {
+            var msg = cb.receive_queue.popFront() orelse unreachable;
+            defer msg.deinit();
+            try std.testing.expectEqualStrings("Bar", msg.bytes());
+            break:pop_msg;
+        }
+    }
+
+    test "one to many communication about PUB/SUB" {
         var tmp = std.testing.tmpDir(.{});
         defer tmp.cleanup();
         const url = try test_support.make_ipc_sock(tmp.dir, "pub_sub");
@@ -878,7 +1042,7 @@ pub const tests = struct {
                     for (results) |result| {
                         try std.testing.expectEqual(.ready, std.meta.activeTag(result));
 
-                        var msg = try result.ready.receiver().drain(.{});
+                        var msg = try result.ready.receiver().tryDrain(.{}) orelse unreachable;
                         defer msg.deinit();
                         try std.testing.expectEqualStrings("topic|Foo", msg.bytes());
                     }

@@ -8,7 +8,7 @@ const PipeLock = root.PipeLock;
 
 const AioState = enum(u8) {
     idle,
-    wating,
+    waiting,
     completed,
     timeout,
     stopped,
@@ -58,7 +58,7 @@ pub const StateMachine = extern struct {
     }
 
     pub fn wait(self: *StateMachine) AioPipeError!void {
-        while (self.currentState() == .wating) {
+        while (self.currentState() == .waiting) {
             if (self.currentState() == .completed) return;
             if (self.currentState() == .stopped) return error.Canceled;
             try self.inner.barrier.wait(self.inner.io);
@@ -75,7 +75,7 @@ pub const StateMachine = extern struct {
         if (self.currentState() != .idle) {
             return error.Canceled;
         }
-        @atomicStore(AioState, &self.inner.state, .wating, .release);
+        @atomicStore(AioState, &self.inner.state, .waiting, .release);
     }
 
     pub fn transitComplete(self: *StateMachine) void {
@@ -128,7 +128,7 @@ fn completionCallback(ptr: ?*anyopaque) callconv(.c) void {
 
         switch (fsm.currentState()) {
             .idle, .completed, .stopped, .timeout => {},
-            .wating => {
+            .waiting => {
                 const err = c.nng_aio_result(fsm.raw_aio);
                 if (err == c.NNG_ETIMEDOUT) {
                     fsm.transitTimeout();

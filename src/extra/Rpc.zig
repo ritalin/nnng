@@ -53,7 +53,7 @@ pub const Options = struct {
     timeout: ?std.Io.Duration = null,
 };
 
-pub const Error = root.SendError || root.ReceiveError;
+pub const Error = root.SendError || root.ReceiveError || std.Io.ConcurrentError;
 
 test "rpc test" {
     std.testing.refAllDecls(@This());
