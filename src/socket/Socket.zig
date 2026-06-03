@@ -28,7 +28,7 @@ pub fn init(context: Context, raw_socket: c.nng_socket) Socket {
 pub fn close(self: Socket) void {
     const err = c.nng_socket_close(self.raw_socket);
     if (err != 0) {
-        std.log.warn("Socket: already closed", .{});
+        std.log.scoped(.nnng).warn("Socket: already closed", .{});
     }
 }
 

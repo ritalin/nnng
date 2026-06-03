@@ -9,7 +9,7 @@ pub fn open_error(err: c_int) root.OpenError {
     if (err == c.NNG_ENOTSUP) {
         return error.NotSupported;
     }
-    std.log.err("open_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("open_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -17,7 +17,7 @@ pub fn close_error(err: c_int) root.CloseError {
     if (err == c.NNG_ECLOSED) {
         return error.AlreadyClosed;
     }
-    std.log.err("close_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("close_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -31,7 +31,7 @@ pub fn new_transport_error(err: c_int) root.TransportError {
     if (err == c.NNG_ENOMEM) {
         return error.OutOfMemory;
     }
-    std.log.err("new_transport_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("new_transport_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -72,7 +72,7 @@ pub fn start_transport_error(err: c_int) root.StartTransportError {
     if (err == c.NNG_ETIMEDOUT) {
         return error.Timeout;
     }
-    std.log.err("start_transport_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("start_transport_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -89,7 +89,7 @@ pub fn aio_pipe_error(err: c_int) root.AioPipeError {
     if (err == c.NNG_ETIMEDOUT) {
         return error.Timeout;
     }
-    std.log.err("open_aio_pipe_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("open_aio_pipe_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -122,7 +122,7 @@ pub fn send_error(err: c_int) root.SendError {
         return error.Canceled;
     }
 
-    std.log.err("send_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("send_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -152,7 +152,7 @@ pub fn receive_error(err: c_int) root.ReceiveError {
         return error.Canceled;
     }
 
-    std.log.err("receive_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("receive_error/unhandled code: {}", .{err});
     unreachable;
 }
 
@@ -176,6 +176,6 @@ pub fn option_error(err: c_int) root.OptionError {
         return error.WriteOnly;
     }
 
-    std.log.err("option_error/unhandled code: {}", .{err});
+    std.log.scoped(.nnng).err("option_error/unhandled code: {}", .{err});
     unreachable;
 }

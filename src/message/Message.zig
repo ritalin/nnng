@@ -118,7 +118,7 @@ const Impl = struct {
     fn flushInternal(w: *std.Io.Writer) std.Io.Writer.Error!void {
         const self: *Self = @alignCast(@fieldParentPtr("writer", w));
 
-        std.log.debug("Flush msg/len: {}, end: {}", .{ self.len(), w.end });
+        std.log.scoped(.nnng).debug("Flush msg/len: {}, end: {}", .{ self.len(), w.end });
 
         const err = c.nng_msg_realloc(self.raw_msg, w.end);
         if (err != 0) {

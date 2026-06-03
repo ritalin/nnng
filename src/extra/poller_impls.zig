@@ -5,10 +5,11 @@ const errors = @import("../error_handlers.zig");
 const c = @import("c");
 
 const Sender = @import("../message/Sender.zig");
-const Receiver = @import("../message/Receiver.zig");
+const TryPipeReceiver = root.TryPipeReceiver;
 const ReadyChannel = @import("./poller.zig").ReadyChannel;
 
 const Pipe = root.Pipe;
+const PipeLock = root.PipeLock;
 const Message = root.Message;
 const SendError = root.SendError;
 const ReceiveError = root.ReceiveError;
@@ -56,10 +57,17 @@ pub const PollerPipeImpl = union(enum) {
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
 
-            c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
-            c.nng_aio_wait(pipe.aio_slot.raw_aio);
+            if (pipe.fsm.currentState() == .completed) {
+                // For no `drain` call
+                pipe.fsm.transitIdle();
+            }
+            if (pipe.fsm.currentState() != .waiting) {
+                try pipe.fsm.transitWaiting();
+                c.nng_recv_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
+            }
+            try pipe.fsm.wait();
 
-            std.log.debug("Poller-awake:Sync/id: {}", .{ pipe.id });
+            std.log.scoped(.nnng).debug("Poller-awake:Sync/id: {}", .{ pipe.id });
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
@@ -75,7 +83,8 @@ pub const PollerPipeImpl = union(enum) {
                 .impl = .{ .sync = self },
                 .vtable = .{
                     .on_submit = Self.submitMessage,
-                    .on_drain = Self.drainMessage,
+                    .on_try_drain = Self.tryDrainMessage,
+                    .on_lock_pipe = Self.lockSendPipe,
                 },
                 .features = pipe.features,
             };
@@ -91,26 +100,55 @@ pub const PollerPipeImpl = union(enum) {
 
             const sender: Sender = .{
                 .owner = self.pipe,
-                .on_submit = sender0.on_submit,
+                .vtable = .{
+                    .on_submit = sender0.vtable.on_submit,
+                    .on_lock_pipe = sender0.vtable.on_lock_pipe,
+                },
             };
 
             return pipe_impl.SyncSenderImpl.submit_message(&sender, msg, options);
         }
 
-        pub fn drainMessage(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
+        pub fn tryDrainMessage(receiver: *const TryPipeReceiver, options: TryPipeReceiver.Options) ReceiveError!?Message {
             _ = options;
 
             const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+            if (self.pipe.fsm.currentState() == .idle) {
+                return null;
+            }
+
+            std.log.scoped(.nnng).debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
 
             const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
+
+            if (err == c.NNG_EAGAIN) {
+                return null;
+            }
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
 
-            std.log.debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
+            const raw_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
+            if (raw_msg == null) {
+                return null;
+            }
+            self.pipe.fsm.transitIdle();
 
-            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
-            return Message.fromRaw(raw_msg.?);
+            const msg = Message.fromRaw(raw_msg.?);
+
+            if (!self.pipe.features.replyable) {
+                try self.pipe.fsm.transitWaiting();
+                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
+                c.nng_recv_aio(self.pipe.socket.raw_socket, self.pipe.aio_slot.raw_aio);
+            }
+
+            return msg;
+        }
+
+        pub fn lockSendPipe(receiver: *const Sender) PipeLock {
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+
+            return self.pipe.fsm.lock();
         }
     };
 
@@ -128,17 +166,22 @@ pub const PollerPipeImpl = union(enum) {
         pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
             const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
-            try pipe.fsm.transitWaiting();
-            c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
+            if (pipe.fsm.currentState() == .completed) {
+                // For no `drain` call
+                pipe.fsm.transitIdle();
+            }
+            if (pipe.fsm.currentState() != .waiting) {
+                try pipe.fsm.transitWaiting();
+                c.nng_ctx_recv(pipe.raw_ctx, pipe.aio_slot.raw_aio);
+            }
             try pipe.fsm.wait();
 
-            std.log.debug("Poller-awake:Parallel/id: {}", .{ pipe.id });
+            std.log.scoped(.nnng).debug("Poller-awake:Parallel/id: {}", .{ pipe.id });
 
             const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
-            defer pipe.fsm.transitIdle();
 
             const self: Self = .{
                 .pipe = pipe,
@@ -149,7 +192,8 @@ pub const PollerPipeImpl = union(enum) {
                 .impl = .{ .parallel = self },
                 .vtable = .{
                     .on_submit = Self.submitMessage,
-                    .on_drain = Self.drainMessage,
+                    .on_try_drain = Self.tryDrainMessage,
+                    .on_lock_pipe = Self.lockSenderPipe,
                 },
                 .features = pipe.features,
             };
@@ -165,25 +209,54 @@ pub const PollerPipeImpl = union(enum) {
 
             const sender: Sender = .{
                 .owner = self.pipe,
-                .on_submit = sender0.on_submit,
+                .vtable = .{
+                    .on_submit = sender0.vtable.on_submit,
+                    .on_lock_pipe = sender0.vtable.on_lock_pipe,
+                },
             };
 
             return pipe_impl.ParallelSenderImpl.submit_message(&sender, msg, options);
         }
 
-        pub fn drainMessage(receiver: *const Receiver, options: Receiver.Options) ReceiveError!Message {
+        pub fn tryDrainMessage(receiver: *const TryPipeReceiver, options: TryPipeReceiver.Options) ReceiveError!?Message {
             _ = options;
 
             const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+            if (self.pipe.fsm.currentState() == .idle) {
+                return null;
+            }
+
+            std.log.scoped(.nnng).debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
 
             const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
+
+            if (err == c.NNG_EAGAIN) {
+                return null;
+            }
             if (err != 0) {
                 return errors.receive_error(@intCast(err));
             }
-            std.log.debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
 
-            const raw_msg: ?*c.nng_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
-            return Message.fromRaw(raw_msg.?);
+            const raw_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
+            if (raw_msg == null) {
+                return null;
+            }
+            self.pipe.fsm.transitIdle();
+            
+            const msg = Message.fromRaw(raw_msg.?);
+
+            if (!self.pipe.features.replyable) {
+                try self.pipe.fsm.transitWaiting();
+                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
+                c.nng_ctx_recv(self.pipe.raw_ctx, self.pipe.aio_slot.raw_aio);
+            }
+
+            return msg;
+        }
+
+        pub fn lockSenderPipe(receiver: *const Sender) PipeLock {
+            const self: *const Self = @ptrCast(@alignCast(receiver.owner));
+            return self.pipe.fsm.lock();
         }
     };
 };

@@ -4,16 +4,19 @@ const root = @import("../root.zig");
 const errors = @import("../error_handlers.zig");
 
 const AioPipeError = root.AioPipeError;
+const PipeLock = root.PipeLock;
 
 const AioState = enum(u8) {
     idle,
-    wating,
+    waiting,
     completed,
+    timeout,
     stopped,
 };
 
 pub const StateMachine = extern struct {
     raw_aio: *c.nng_aio,
+    mutex: *c.nng_mtx,
     inner: *StateMachine.Inner,
 
     pub fn create(io: std.Io, allocator: std.mem.Allocator) AioPipeError!*StateMachine {
@@ -29,11 +32,18 @@ pub const StateMachine = extern struct {
             break:open raw_aio;
         };
 
+        var mutex: ?*c.nng_mtx = null;
+        const err = c.nng_mtx_alloc(&mutex);
+        if (err != 0) {
+            return errors.aio_pipe_error(@intCast(err));
+        }
+
         const inner = try allocator.create(StateMachine.Inner);
         inner.* = StateMachine.Inner.init(io);
 
         self.* = .{
             .raw_aio = raw_aio.?,
+            .mutex = mutex.?,
             .inner = inner,
         };
 
@@ -41,18 +51,19 @@ pub const StateMachine = extern struct {
     }
 
     pub fn deinit(self: *StateMachine, allocator: std.mem.Allocator) void {
+        c.nng_mtx_free(self.mutex);
         _ = c.nng_aio_free(self.raw_aio);
         allocator.destroy(self.inner);
         allocator.destroy(self);
     }
 
-pub fn wait(self: *StateMachine) AioPipeError!void {
-    while (self.currentState() == .wating) {
-        if (self.currentState() == .completed) return;
-        if (self.currentState() == .stopped) return error.Canceled;
-        try self.inner.barrier.wait(self.inner.io);
+    pub fn wait(self: *StateMachine) AioPipeError!void {
+        while (self.currentState() == .waiting) {
+            if (self.currentState() == .completed) return;
+            if (self.currentState() == .stopped) return error.Canceled;
+            try self.inner.barrier.wait(self.inner.io);
+        }
     }
-}
 
     pub fn transitIdle(self: *StateMachine) void {
         @atomicStore(AioState, &self.inner.state, .idle, .release);
@@ -64,11 +75,17 @@ pub fn wait(self: *StateMachine) AioPipeError!void {
         if (self.currentState() != .idle) {
             return error.Canceled;
         }
-        @atomicStore(AioState, &self.inner.state, .wating, .release);
+        @atomicStore(AioState, &self.inner.state, .waiting, .release);
     }
 
     pub fn transitComplete(self: *StateMachine) void {
         @atomicStore(AioState, &self.inner.state, .completed, .release);
+
+        self.inner.barrier.set(self.inner.io);
+    }
+
+    pub fn transitTimeout(self: *StateMachine) void {
+        @atomicStore(AioState, &self.inner.state, .timeout, .release);
 
         self.inner.barrier.set(self.inner.io);
     }
@@ -83,6 +100,11 @@ pub fn wait(self: *StateMachine) AioPipeError!void {
 
     pub fn currentState(self: *StateMachine) AioState {
         return @atomicLoad(AioState, &self.inner.state, .acquire);
+    }
+
+    pub fn lock(self: *StateMachine) PipeLock {
+        c.nng_mtx_lock(self.mutex);
+        return .{ .mutex = self.mutex };
     }
 
     const Inner = struct {
@@ -105,9 +127,13 @@ fn completionCallback(ptr: ?*anyopaque) callconv(.c) void {
         var fsm: *StateMachine = @ptrCast(@alignCast(p));
 
         switch (fsm.currentState()) {
-            .idle, .completed, .stopped => {},
-            .wating => {
-                if ((c.nng_aio_result(fsm.raw_aio) == 0) and (c.nng_aio_get_msg(fsm.raw_aio) != null)) {
+            .idle, .completed, .stopped, .timeout => {},
+            .waiting => {
+                const err = c.nng_aio_result(fsm.raw_aio);
+                if (err == c.NNG_ETIMEDOUT) {
+                    fsm.transitTimeout();
+                }
+                else if ((err == 0) and (c.nng_aio_get_msg(fsm.raw_aio) != null)) {
                     fsm.transitComplete();
                 }
             },

@@ -73,8 +73,8 @@ pub const tests = struct {
     const test_support = @import("../supports/test.zig");
 
     const Message = @import("../message/Message.zig");
-    const Sender = @import("../message/Sender.zig");
-    const Receiver = @import("../message/Receiver.zig");
+    const PipeSender = root.PipeSender;
+    const PipeReceiver = root.PipeReceiver;
 
     test "new REQ socket" {
         var tmp = std.testing.tmpDir(.{});
