@@ -138,7 +138,9 @@ pub const PollerPipeImpl = union(enum) {
 
             if (!self.pipe.features.replyable) {
                 try self.pipe.fsm.transitWaiting();
-                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
+                // TODO: This is a hack.
+                // `nng_aio_set_msg` is used to prepare sending.
+                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null);
                 c.nng_recv_aio(self.pipe.socket.raw_socket, self.pipe.aio_slot.raw_aio);
             }
 
@@ -247,7 +249,9 @@ pub const PollerPipeImpl = union(enum) {
 
             if (!self.pipe.features.replyable) {
                 try self.pipe.fsm.transitWaiting();
-                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
+                // TODO: This is a hack.
+                // `nng_aio_set_msg` is used to prepare sending.
+                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null);
                 c.nng_ctx_recv(self.pipe.raw_ctx, self.pipe.aio_slot.raw_aio);
             }
 
