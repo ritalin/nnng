@@ -359,14 +359,18 @@ pub const ReadyChannel = struct {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_try_drain = self.vtable.on_try_drain,
+                    .vtable = .{
+                        .on_try_drain = self.vtable.on_try_drain,
+                    },
                 };
             },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_try_drain = self.vtable.on_try_drain,
+                    .vtable = .{
+                        .on_try_drain = self.vtable.on_try_drain,
+                    },
                 };
             },
         }
@@ -553,7 +557,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -661,7 +665,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -746,7 +750,7 @@ pub const tests = struct {
                 try std.testing.expectEqual(1, results.len);
                 try std.testing.expectEqual(.ready, std.meta.activeTag(results[0]));
 
-                var msg = try results[0].ready.receiver().tryDrain(.{}) orelse unreachable;
+                var msg = try results[0].ready.receiver().tryDrain() orelse unreachable;
                 try std.testing.expectEqualStrings("Hello World", msg.bytes());
 
                 msg.writer.advance(msg.len());
@@ -836,7 +840,7 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
@@ -944,7 +948,7 @@ pub const tests = struct {
                     for (results) |result| {
                         try std.testing.expectEqual(.ready, std.meta.activeTag(result));
                         const receiver = result.ready.receiver();
-                        while (try receiver.tryDrain(.{})) |msg| {
+                        while (try receiver.tryDrain()) |msg| {
                             try self.receive_queue.pushBack(self.allocator, msg);
                         }
                     }
@@ -1042,7 +1046,7 @@ pub const tests = struct {
                     for (results) |result| {
                         try std.testing.expectEqual(.ready, std.meta.activeTag(result));
 
-                        var msg = try result.ready.receiver().tryDrain(.{}) orelse unreachable;
+                        var msg = try result.ready.receiver().tryDrain() orelse unreachable;
                         defer msg.deinit();
                         try std.testing.expectEqualStrings("topic|Foo", msg.bytes());
                     }

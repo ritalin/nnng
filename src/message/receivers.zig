@@ -50,9 +50,19 @@ pub const Receiver = struct {
 pub const TryReceiver = struct {
     owner: *const anyopaque,
     slot: *message_impl.AioSlot,
-    on_try_drain: *const fn (receiver: *const Self, options: Options) ReceiveError!?Message,
+    options: Options = .{},
+    vtable: VTable,
 
     const Self = @This();
+
+    pub fn withOpt(self: *const Self, options: Options) Self {
+        return .{
+            .owner = self.owner,
+            .slot = self.slot,
+            .options = options,
+            .vtable = self.vtable,
+        };
+    }
 
     /// Attempts to receive a message.
     ///
@@ -69,12 +79,16 @@ pub const TryReceiver = struct {
     /// External synchronization does not make multiple calls safe.
     /// The function assumes single-consumer semantics.
     ///
-    pub fn tryDrain(self: *const Self, options: Options) ReceiveError!?Message {
-        return (self.on_try_drain)(self, options);
+    pub fn tryDrain(self: *const Self) ReceiveError!?Message {
+        return (self.vtable.on_try_drain)(self, self.options);
     }
 
     pub const Option = ReceiverOption;
     pub const Options = ReceiverOptions;
+
+    const VTable = struct {
+        on_try_drain: *const fn (receiver: *const Self, options: Options) ReceiveError!?Message,
+    };
 };
 
 const ReceiverOption = enum {
