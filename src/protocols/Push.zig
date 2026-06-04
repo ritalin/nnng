@@ -186,7 +186,7 @@ pub const tests = struct {
         try push_pipe.sender().submit(msg, .{});
 
         // REP (recv)
-        msg = try pull_pipe.receiver().drain(.{});
+        msg = try pull_pipe.receiver().drain();
 
         try std.testing.expectEqualStrings(v0, msg.bytes());
     }
@@ -237,7 +237,7 @@ pub const tests = struct {
             try msg.writer.flush();
             try push_pipe.sender().submit(msg, .{});
 
-            msg = try pull_pipe.receiver().drain(.{});
+            msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("Foo", msg.bytes());
 
@@ -251,7 +251,7 @@ pub const tests = struct {
             try msg.writer.flush();
             try push_pipe.sender().submit(msg, .{});
 
-            msg = try pull_pipe.receiver().drain(.{});
+            msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("Bar", msg.bytes());
 

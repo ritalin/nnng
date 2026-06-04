@@ -570,7 +570,7 @@ pub const tests = struct {
         _ = try poller.poll(PollCallback.replyMsg);
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
@@ -686,13 +686,13 @@ pub const tests = struct {
         }
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
         }
         receive_msg: {
-            var msg = try req_pipe2.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe2.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("BarBaz", msg.bytes());
             break:receive_msg;
@@ -769,7 +769,7 @@ pub const tests = struct {
         try std.testing.expectEqual(1, n);
         try std.testing.expectEqual(true, cb.called);
 
-        var msg = try req_socket1.pipe.item.receiver().drain(.{});
+        var msg = try req_socket1.pipe.item.receiver().drain();
         defer msg.deinit();
         try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
@@ -859,7 +859,7 @@ pub const tests = struct {
         try std.testing.expectEqual(1, accept);
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;

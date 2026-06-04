@@ -184,7 +184,7 @@ pub const tests = struct {
         try pub_pipe.sender().submit(msg, .{});
 
         // SUB (recv)
-        const recv_msg = sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMicroseconds(10)});
+        const recv_msg = sub_pipe.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMicroseconds(10)}).drain();
         try std.testing.expectError(error.Timeout, recv_msg);
     }
 
@@ -251,14 +251,14 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB_1: {
-            var msg = try sub_pipe1.receiver().drain(.{});
+            var msg = try sub_pipe1.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
+            var msg = try sub_pipe2.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -274,14 +274,14 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB_1: {
-            var msg = try sub_pipe1.receiver().drain(.{});
+            var msg = try sub_pipe1.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
+            var msg = try sub_pipe2.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
@@ -350,12 +350,12 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            var msg = try sub_pipe2.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -371,14 +371,14 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB_1: {
-            var msg = try sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            var msg = try sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            const msg = sub_pipe2.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe2.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_2;
         }
@@ -431,7 +431,7 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB: {
-            var msg = try sub_pipe.receiver().drain(.{});
+            var msg = try sub_pipe.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
@@ -446,7 +446,7 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB: {
-            var msg = try sub_pipe.receiver().drain(.{});
+            var msg = try sub_pipe.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -503,7 +503,7 @@ pub const tests = struct {
             break:send_PUB;
         }
         recv_SUB: {
-            const recv_msg = sub_pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMicroseconds(10)});
+            const recv_msg = sub_pipe.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMicroseconds(10)}).drain();
             try std.testing.expectError(error.Timeout, recv_msg);
             break:recv_SUB;
         }
@@ -566,19 +566,19 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
+            var msg = try sub_pipe2.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
             break:recv_SUB_2;
         }
         recv_SUB_3: {
-            const msg = sub_pipe3.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe3.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_3;
         }
@@ -592,19 +592,19 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
+            var msg = try sub_pipe2.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
             break:recv_SUB_2;
         }
         recv_SUB_3: {
-            var msg = try sub_pipe3.receiver().drain(.{});
+            var msg = try sub_pipe3.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);
@@ -666,12 +666,12 @@ pub const tests = struct {
             break:send_PUB;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20) });
+            const msg = sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().drain(.{});
+            var msg = try sub_pipe2.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -738,7 +738,7 @@ pub const tests = struct {
             break:send_PUB_1;
         }
         recv_SUB: {
-            var msg = try sub_pipe.receiver().drain(.{});
+            var msg = try sub_pipe.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -754,7 +754,7 @@ pub const tests = struct {
             break:send_PUB_2;
         }
         recv_SUB: {
-            var msg = try sub_pipe.receiver().drain(.{});
+            var msg = try sub_pipe.receiver().drain();
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("hobby|Soccor", v);

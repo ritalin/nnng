@@ -112,7 +112,9 @@ pub const Sync = struct {
             return .{
                 .owner = self,
                 .slot = &self.aio_slot,
-                .on_drain = impl.SyncReceiverImpl.drain_message,
+                .vtable = .{
+                    .on_drain = impl.SyncReceiverImpl.drain_message,
+                }
             };
         }
 
@@ -253,7 +255,9 @@ pub const Parallel = struct {
             return .{
                 .owner = self,
                 .slot = &self.aio_slot,
-                .on_drain = impl.ParallelReceiverImpl.drain_message,
+                .vtable = .{
+                    .on_drain = impl.ParallelReceiverImpl.drain_message,
+                },
             };
         }
 
