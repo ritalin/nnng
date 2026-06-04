@@ -44,8 +44,8 @@ pub fn submit(self: *Self, io: std.Io, sender: root.PipeSender, receiver: root.P
 }
 
 fn submitInternal(self: *Self, sender: root.PipeSender, receiver: root.PipeReceiver, msg: Message) Self.Error!void {
-    try sender.submit(msg, .{});
-    self.msg = try receiver.drain(.{ .timeout = self.options.timeout });
+    try sender.submit(msg);
+    self.msg = try receiver.withOpt(.{ .timeout = self.options.timeout }).drain();
 }
 
 pub const Options = struct {
@@ -98,13 +98,13 @@ pub const tests = struct {
 
     fn testReplyToRpc(sender: root.PipeSender, receiver: root.PipeReceiver, reply: []const u8) void {
         const result: RunRpcError = reply: {
-            var msg = receiver.drain(.{}) catch |err| break:reply .{ .rep_receive_failed = err };
+            var msg = receiver.drain() catch |err| break:reply .{ .rep_receive_failed = err };
 
             msg.writer.advance(msg.len());
             msg.writer.writeAll(reply) catch |err| break:reply .{ .write_failed = err };
             msg.writer.flush() catch |err| break:reply .{ .write_failed = err };
 
-            sender.submit(msg, .{}) catch |err| break:reply .{ .rep_send_failed = err };
+            sender.submit(msg) catch |err| break:reply .{ .rep_send_failed = err };
             break:reply .ok;
         };
 

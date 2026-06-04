@@ -119,30 +119,33 @@ pub const PollerPipeImpl = union(enum) {
 
             std.log.scoped(.nnng).debug("Poller-received:Sync/id: {}", .{ self.pipe.id });
 
-            const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
+            const raw_msg: ?*c.nng_msg = msg: switch (self.pipe.fsm.currentState()) {
+                .completed => c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio),
+                .has_more => {
+                    var raw_msg: ?*c.nng_msg = null;
+                    const err = c.nng_recvmsg(self.pipe.socket.raw_socket, &raw_msg, c.NNG_FLAG_NONBLOCK);
+                    if (err == 0) break:msg raw_msg
+                    else if (err == c.NNG_EAGAIN) {
+                        break:msg null;
+                    }
+                    else {
+                        defer self.pipe.fsm.transitIdle();
+                        return errors.receive_error(@intCast(err));
+                    }
+                },
+                else => break:msg null,
+            };
 
-            if (err == c.NNG_EAGAIN) {
-                return null;
-            }
-            if (err != 0) {
-                return errors.receive_error(@intCast(err));
-            }
-
-            const raw_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             if (raw_msg == null) {
+                defer self.pipe.fsm.transitIdle();
                 return null;
             }
-            self.pipe.fsm.transitIdle();
-
-            const msg = Message.fromRaw(raw_msg.?);
 
             if (!self.pipe.features.replyable) {
-                try self.pipe.fsm.transitWaiting();
-                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
-                c.nng_recv_aio(self.pipe.socket.raw_socket, self.pipe.aio_slot.raw_aio);
+                try self.pipe.fsm.transitIteration();
             }
 
-            return msg;
+            return Message.fromRaw(raw_msg.?);
         }
 
         pub fn lockSendPipe(receiver: *const Sender) PipeLock {
@@ -228,30 +231,13 @@ pub const PollerPipeImpl = union(enum) {
 
             std.log.scoped(.nnng).debug("Poller-received:Parallel/id: {}", .{ self.pipe.id });
 
-            const err = c.nng_aio_result(self.pipe.aio_slot.raw_aio);
-
-            if (err == c.NNG_EAGAIN) {
-                return null;
-            }
-            if (err != 0) {
-                return errors.receive_error(@intCast(err));
-            }
-
             const raw_msg = c.nng_aio_get_msg(self.pipe.aio_slot.raw_aio);
             if (raw_msg == null) {
                 return null;
             }
-            self.pipe.fsm.transitIdle();
+            defer self.pipe.fsm.transitIdle();
             
-            const msg = Message.fromRaw(raw_msg.?);
-
-            if (!self.pipe.features.replyable) {
-                try self.pipe.fsm.transitWaiting();
-                c.nng_aio_set_msg(self.pipe.aio_slot.raw_aio, null); // Hack
-                c.nng_ctx_recv(self.pipe.raw_ctx, self.pipe.aio_slot.raw_aio);
-            }
-
-            return msg;
+            return Message.fromRaw(raw_msg.?);
         }
 
         pub fn lockSenderPipe(receiver: *const Sender) PipeLock {

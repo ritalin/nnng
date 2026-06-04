@@ -9,8 +9,10 @@ const PipeLock = root.PipeLock;
 const AioState = enum(u8) {
     idle,
     waiting,
+    has_more,
     completed,
     timeout,
+    canceled,
     stopped,
 };
 
@@ -78,6 +80,10 @@ pub const StateMachine = extern struct {
         @atomicStore(AioState, &self.inner.state, .waiting, .release);
     }
 
+    pub fn transitIteration(self: *StateMachine) AioPipeError!void {
+        @atomicStore(AioState, &self.inner.state, .has_more, .release);
+    }
+
     pub fn transitComplete(self: *StateMachine) void {
         @atomicStore(AioState, &self.inner.state, .completed, .release);
 
@@ -86,6 +92,12 @@ pub const StateMachine = extern struct {
 
     pub fn transitTimeout(self: *StateMachine) void {
         @atomicStore(AioState, &self.inner.state, .timeout, .release);
+
+        self.inner.barrier.set(self.inner.io);
+    }
+
+    pub fn transitCancel(self: *StateMachine) void {
+        @atomicStore(AioState, &self.inner.state, .canceled, .release);
 
         self.inner.barrier.set(self.inner.io);
     }
@@ -127,11 +139,14 @@ fn completionCallback(ptr: ?*anyopaque) callconv(.c) void {
         var fsm: *StateMachine = @ptrCast(@alignCast(p));
 
         switch (fsm.currentState()) {
-            .idle, .completed, .stopped, .timeout => {},
+            .idle, .completed, .has_more, .stopped, .timeout, .canceled => {},
             .waiting => {
                 const err = c.nng_aio_result(fsm.raw_aio);
                 if (err == c.NNG_ETIMEDOUT) {
                     fsm.transitTimeout();
+                }
+                else if (err == c.NNG_ECANCELED) {
+                    fsm.transitCancel();
                 }
                 else if ((err == 0) and (c.nng_aio_get_msg(fsm.raw_aio) != null)) {
                     fsm.transitComplete();

@@ -166,9 +166,9 @@ pub const tests = struct {
             const v0 = "Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pipe1.sender().submit(msg, .{});
+            try pipe1.sender().submit(msg);
 
-            msg = try pipe2.receiver().drain(.{});
+            msg = try pipe2.receiver().drain();
             defer msg.deinit();
 
             try std.testing.expectEqualStrings(v0, msg.bytes());
@@ -180,9 +180,9 @@ pub const tests = struct {
             const v0 = "World";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pipe2.sender().submit(msg, .{});
+            try pipe2.sender().submit(msg);
 
-            msg = try pipe1.receiver().drain(.{});
+            msg = try pipe1.receiver().drain();
             defer msg.deinit();
 
             try std.testing.expectEqualStrings(v0, msg.bytes());

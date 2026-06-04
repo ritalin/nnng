@@ -183,10 +183,10 @@ pub const tests = struct {
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try push_pipe.sender().submit(msg, .{});
+        try push_pipe.sender().submit(msg);
 
         // REP (recv)
-        msg = try pull_pipe.receiver().drain(.{});
+        msg = try pull_pipe.receiver().drain();
 
         try std.testing.expectEqualStrings(v0, msg.bytes());
     }
@@ -235,9 +235,9 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try push_pipe.sender().submit(msg, .{});
+            try push_pipe.sender().submit(msg);
 
-            msg = try pull_pipe.receiver().drain(.{});
+            msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("Foo", msg.bytes());
 
@@ -249,9 +249,9 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try push_pipe.sender().submit(msg, .{});
+            try push_pipe.sender().submit(msg);
 
-            msg = try pull_pipe.receiver().drain(.{});
+            msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("Bar", msg.bytes());
 

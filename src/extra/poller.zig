@@ -359,14 +359,18 @@ pub const ReadyChannel = struct {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_try_drain = self.vtable.on_try_drain,
+                    .vtable = .{
+                        .on_try_drain = self.vtable.on_try_drain,
+                    },
                 };
             },
             .parallel => |*impl| {
                 return .{
                     .owner = impl,
                     .slot = &impl.pipe.aio_slot,
-                    .on_try_drain = self.vtable.on_try_drain,
+                    .vtable = .{
+                        .on_try_drain = self.vtable.on_try_drain,
+                    },
                 };
             },
         }
@@ -533,7 +537,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -553,11 +560,14 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -570,7 +580,7 @@ pub const tests = struct {
         _ = try poller.poll(PollCallback.replyMsg);
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
@@ -623,7 +633,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -631,7 +644,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try req_pipe2.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe2.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -661,11 +677,14 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -686,13 +705,13 @@ pub const tests = struct {
         }
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
         }
         receive_msg: {
-            var msg = try req_pipe2.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe2.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("BarBaz", msg.bytes());
             break:receive_msg;
@@ -728,7 +747,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Hello World");
             try msg.writer.flush();
-            try req_socket1.pipe.item.sender().submit(msg, .{});
+            try req_socket1.pipe.item.sender().submit(msg);
             break:send_msg;
         }
 
@@ -746,13 +765,13 @@ pub const tests = struct {
                 try std.testing.expectEqual(1, results.len);
                 try std.testing.expectEqual(.ready, std.meta.activeTag(results[0]));
 
-                var msg = try results[0].ready.receiver().tryDrain(.{}) orelse unreachable;
+                var msg = try results[0].ready.receiver().tryDrain() orelse unreachable;
                 try std.testing.expectEqualStrings("Hello World", msg.bytes());
 
                 msg.writer.advance(msg.len());
                 try msg.writer.writeAll("!!");
                 try msg.writer.flush();
-                try results[0].ready.sender().submit(msg, .{});
+                try results[0].ready.sender().submit(msg);
                 self.called = true;
             }
         };
@@ -769,7 +788,7 @@ pub const tests = struct {
         try std.testing.expectEqual(1, n);
         try std.testing.expectEqual(true, cb.called);
 
-        var msg = try req_socket1.pipe.item.receiver().drain(.{});
+        var msg = try req_socket1.pipe.item.receiver().drain();
         defer msg.deinit();
         try std.testing.expectEqualStrings("Hello World!!", msg.bytes());
     }
@@ -805,7 +824,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -836,11 +858,14 @@ pub const tests = struct {
                         switch (result) {
                             .failed => |x| return x.err,
                             .ready => |channel| {
-                                var msg = try channel.receiver().tryDrain(.{}) orelse unreachable;
+                                var msg = try channel.receiver().tryDrain() orelse unreachable;
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -859,7 +884,7 @@ pub const tests = struct {
         try std.testing.expectEqual(1, accept);
 
         receive_msg: {
-            var msg = try req_pipe1.receiver().drain(.{ .flags = .{ .nonblocking = false }});
+            var msg = try req_pipe1.receiver().withOpt(.{ .flags = .{ .nonblocking = false }}).drain();
             defer msg.deinit();
             try std.testing.expectEqualStrings("FooBaz", msg.bytes());
             break:receive_msg;
@@ -901,7 +926,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            try sender
+                .withOpt(.{ .flags = .{.nonblocking = false }})
+                .submit(msg, )
+            ;
             break:send;
         }
         send: {
@@ -911,7 +939,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            try sender
+                .withOpt(.{ .flags = .{.nonblocking = false }})
+                .submit(msg, )
+            ;
             break:send;
         }
 
@@ -944,7 +975,7 @@ pub const tests = struct {
                     for (results) |result| {
                         try std.testing.expectEqual(.ready, std.meta.activeTag(result));
                         const receiver = result.ready.receiver();
-                        while (try receiver.tryDrain(.{})) |msg| {
+                        while (try receiver.tryDrain()) |msg| {
                             try self.receive_queue.pushBack(self.allocator, msg);
                         }
                     }
@@ -1013,7 +1044,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("topic|Foo");
             try msg.writer.flush();
-            try pub_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try pub_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -1042,7 +1076,7 @@ pub const tests = struct {
                     for (results) |result| {
                         try std.testing.expectEqual(.ready, std.meta.activeTag(result));
 
-                        var msg = try result.ready.receiver().tryDrain(.{}) orelse unreachable;
+                        var msg = try result.ready.receiver().tryDrain() orelse unreachable;
                         defer msg.deinit();
                         try std.testing.expectEqualStrings("topic|Foo", msg.bytes());
                     }

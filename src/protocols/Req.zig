@@ -228,10 +228,10 @@ pub const tests = struct {
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try req_pipe.sender().submit(msg, .{});
+        try req_pipe.sender().submit(msg);
 
         // REP (recv)
-        msg = try rep_pipe.receiver().drain(.{});
+        msg = try rep_pipe.receiver().drain();
 
         const v1 = try std.testing.allocator.dupe(u8, msg.bytes()); // Prevent in-place overwrite of the source buffer during write.
         defer std.testing.allocator.free(v1);
@@ -244,10 +244,10 @@ pub const tests = struct {
         // REP (send)
         try msg.writer.print("{s}{s}", .{ v1, v1 });
         try msg.writer.flush();
-        try rep_pipe.sender().submit(msg, .{});
+        try rep_pipe.sender().submit(msg);
 
         // REQ (recv)
-        msg = try req_pipe.receiver().drain(.{});
+        msg = try req_pipe.receiver().drain();
         const v2 = msg.bytes();
         try std.testing.expectEqualStrings("HelloHello", v2);
     }
@@ -308,32 +308,32 @@ pub const tests = struct {
         send_REQ_0: {
             try msgs[0].writer.writeAll(v0[0]);
             try msgs[0].writer.flush(); // Need to sync written length
-            try req_pipe0.sender().submit(msgs[0], .{});
+            try req_pipe0.sender().submit(msgs[0]);
             break:send_REQ_0;
         }
         send_REQ_1: {
             try msgs[1].writer.writeAll(v0[1]);
             try msgs[1].writer.flush(); // Need to sync written length
-            try req_pipe1.sender().submit(msgs[1], .{});
+            try req_pipe1.sender().submit(msgs[1]);
             break:send_REQ_1;
         }
         send_REQ_2: {
             try msgs[2].writer.writeAll(v0[2]);
             try msgs[2].writer.flush(); // Need to sync written length
-            try req_pipe2.sender().submit(msgs[2], .{});
+            try req_pipe2.sender().submit(msgs[2]);
             break:send_REQ_2;
         }
 
         replying: {
             var iter = rep_socket.pipe.iter();
             while (iter.next()) |p| {
-                var msg = try p.receiver().drain(.{});
+                var msg = try p.receiver().drain();
                 const v1 = try std.testing.allocator.dupe(u8, msg.bytes());
                 defer std.testing.allocator.free(v1);
 
                 try msg.writer.print("Fizz{s}", .{v1});
                 try msg.writer.flush();
-                try p.sender().submit(msg, .{});
+                try p.sender().submit(msg);
             }
             break:replying;
         }
@@ -343,21 +343,21 @@ pub const tests = struct {
         //
 
         receive_REQ_0: {
-            var msg = try req_pipe0.receiver().drain(.{});
+            var msg = try req_pipe0.receiver().drain();
             defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzFizz", v2);
             break:receive_REQ_0;
         }
         receive_REQ_1: {
-            var msg = try req_pipe1.receiver().drain(.{});
+            var msg = try req_pipe1.receiver().drain();
             defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzBuzz", v2);
             break:receive_REQ_1;
         }
         receive_REQ_2: {
-            var msg = try req_pipe2.receiver().drain(.{});
+            var msg = try req_pipe2.receiver().drain();
             defer msg.deinit();
             const v2 = msg.bytes();
             try std.testing.expectEqualSlices(u8, "FizzFizzBuzz", v2);
@@ -383,12 +383,21 @@ pub const tests = struct {
 
         var pipe = rep_socket.pipe.item;
         timeout: {
-            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = pipe.receiver()
+                .withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(10) })
+                .drain()
+            ;
             try std.testing.expectError(error.Timeout, msg);
             break:timeout;
         }
         timeout: {
-            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20), .flags = .{ .nonblocking = true } });
+            const msg = pipe.receiver()
+                .withOpt(.{ 
+                    .timeout = std.Io.Duration.fromMilliseconds(20), 
+                    .flags = .{ .nonblocking = true } }
+                )
+                .drain()
+            ;
             try std.testing.expectError(error.WouldBlock, msg);
             break:timeout;
         }
@@ -412,12 +421,20 @@ pub const tests = struct {
 
         var pipe = rep_socket.pipe.items[1];
         timeout: {
-            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(10) });
+            const msg = pipe.receiver()
+                .withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(10) })
+                .drain()
+            ;
             try std.testing.expectError(error.Timeout, msg);
             break:timeout;
         }
         timeout: {
-            const msg = pipe.receiver().drain(.{ .timeout = std.Io.Duration.fromMilliseconds(20), .flags = .{ .nonblocking = true } });
+            const msg = pipe.receiver()
+                .withOpt(.{ 
+                    .timeout = std.Io.Duration.fromMilliseconds(20), 
+                    .flags = .{ .nonblocking = true } 
+                })
+                .drain();
             try std.testing.expectError(error.WouldBlock, msg);
             break:timeout;
         }
@@ -463,14 +480,14 @@ pub const tests = struct {
         send_req: {
             try msg.writer.writeAll("Hello");
             try msg.writer.flush();
-            try req_pipe.sender().submit(msg, .{});
+            try req_pipe.sender().submit(msg);
             break:send_req;
         }
         reply_rep: {
-            msg = try rep_pipe.receiver().drain(.{});
+            msg = try rep_pipe.receiver().drain();
             try msg.writer.writeAll("World");
             try msg.writer.flush();
-            try rep_pipe.sender().submit(msg, .{});
+            try rep_pipe.sender().submit(msg);
             break:reply_rep;
         }
         cancel_rec: {
@@ -515,16 +532,16 @@ pub const tests = struct {
                 var msg = try Message.create();
                 try msg.writer.writeAll("Hello");
                 try msg.writer.flush();
-                try req_pipe.sender().submit(msg, .{});
+                try req_pipe.sender().submit(msg);
             }
             break:send_req;
         }
         reply_rep: {
             for (0..2) |_| {
-                var msg = try rep_pipe.receiver().drain(.{});
+                var msg = try rep_pipe.receiver().drain();
                 try msg.writer.writeAll("World");
                 try msg.writer.flush();
-                try rep_pipe.sender().submit(msg, .{});
+                try rep_pipe.sender().submit(msg);
             }
             break:reply_rep;
         }
