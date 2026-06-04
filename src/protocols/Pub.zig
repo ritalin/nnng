@@ -181,7 +181,7 @@ pub const tests = struct {
         const v0 = "greeting|Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try pub_pipe.sender().submit(msg, .{});
+        try pub_pipe.sender().submit(msg);
 
         // SUB (recv)
         const recv_msg = sub_pipe.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMicroseconds(10)}).drain();
@@ -247,7 +247,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_1;
         }
         recv_SUB_1: {
@@ -270,7 +270,7 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_2;
         }
         recv_SUB_1: {
@@ -346,7 +346,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_1;
         }
         recv_SUB_1: {
@@ -355,7 +355,10 @@ pub const tests = struct {
             break:recv_SUB_1;
         }
         recv_SUB_2: {
-            var msg = try sub_pipe2.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
+            var msg = try sub_pipe2.receiver()
+                .withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) })
+                .drain()
+            ;
             defer msg.deinit();
             const v = msg.bytes();
             try std.testing.expectEqualStrings("greeting|Hello", v);
@@ -367,7 +370,7 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_2;
         }
         recv_SUB_1: {
@@ -427,7 +430,7 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_1;
         }
         recv_SUB: {
@@ -442,7 +445,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_2;
         }
         recv_SUB: {
@@ -499,11 +502,14 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB;
         }
         recv_SUB: {
-            const recv_msg = sub_pipe.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMicroseconds(10)}).drain();
+            const recv_msg = sub_pipe.receiver()
+                .withOpt(.{ .timeout = std.Io.Duration.fromMicroseconds(10)})
+                .drain()
+            ;
             try std.testing.expectError(error.Timeout, recv_msg);
             break:recv_SUB;
         }
@@ -562,7 +568,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_1;
         }
         recv_SUB_1: {
@@ -588,11 +594,14 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB_2;
         }
         recv_SUB_1: {
-            const msg = sub_pipe1.receiver().withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) }).drain();
+            const msg = sub_pipe1.receiver()
+                .withOpt(.{ .timeout = std.Io.Duration.fromMilliseconds(20) })
+                .drain()
+            ;
             try std.testing.expectError(error.Timeout, msg);
             break:recv_SUB_1;
         }
@@ -662,7 +671,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe.sender().submit(msg, .{});
+            try pub_pipe.sender().submit(msg);
             break:send_PUB;
         }
         recv_SUB_1: {
@@ -734,7 +743,7 @@ pub const tests = struct {
             const v0 = "greeting|Hello";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe1.sender().submit(msg, .{});
+            try pub_pipe1.sender().submit(msg);
             break:send_PUB_1;
         }
         recv_SUB: {
@@ -750,7 +759,7 @@ pub const tests = struct {
             const v0 = "hobby|Soccor";
             try msg.writer.writeAll(v0);
             try msg.writer.flush(); // Need to sync written length
-            try pub_pipe2.sender().submit(msg, .{});
+            try pub_pipe2.sender().submit(msg);
             break:send_PUB_2;
         }
         recv_SUB: {

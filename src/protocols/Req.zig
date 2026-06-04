@@ -228,7 +228,7 @@ pub const tests = struct {
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try req_pipe.sender().submit(msg, .{});
+        try req_pipe.sender().submit(msg);
 
         // REP (recv)
         msg = try rep_pipe.receiver().drain();
@@ -244,7 +244,7 @@ pub const tests = struct {
         // REP (send)
         try msg.writer.print("{s}{s}", .{ v1, v1 });
         try msg.writer.flush();
-        try rep_pipe.sender().submit(msg, .{});
+        try rep_pipe.sender().submit(msg);
 
         // REQ (recv)
         msg = try req_pipe.receiver().drain();
@@ -308,19 +308,19 @@ pub const tests = struct {
         send_REQ_0: {
             try msgs[0].writer.writeAll(v0[0]);
             try msgs[0].writer.flush(); // Need to sync written length
-            try req_pipe0.sender().submit(msgs[0], .{});
+            try req_pipe0.sender().submit(msgs[0]);
             break:send_REQ_0;
         }
         send_REQ_1: {
             try msgs[1].writer.writeAll(v0[1]);
             try msgs[1].writer.flush(); // Need to sync written length
-            try req_pipe1.sender().submit(msgs[1], .{});
+            try req_pipe1.sender().submit(msgs[1]);
             break:send_REQ_1;
         }
         send_REQ_2: {
             try msgs[2].writer.writeAll(v0[2]);
             try msgs[2].writer.flush(); // Need to sync written length
-            try req_pipe2.sender().submit(msgs[2], .{});
+            try req_pipe2.sender().submit(msgs[2]);
             break:send_REQ_2;
         }
 
@@ -333,7 +333,7 @@ pub const tests = struct {
 
                 try msg.writer.print("Fizz{s}", .{v1});
                 try msg.writer.flush();
-                try p.sender().submit(msg, .{});
+                try p.sender().submit(msg);
             }
             break:replying;
         }
@@ -480,14 +480,14 @@ pub const tests = struct {
         send_req: {
             try msg.writer.writeAll("Hello");
             try msg.writer.flush();
-            try req_pipe.sender().submit(msg, .{});
+            try req_pipe.sender().submit(msg);
             break:send_req;
         }
         reply_rep: {
             msg = try rep_pipe.receiver().drain();
             try msg.writer.writeAll("World");
             try msg.writer.flush();
-            try rep_pipe.sender().submit(msg, .{});
+            try rep_pipe.sender().submit(msg);
             break:reply_rep;
         }
         cancel_rec: {
@@ -532,7 +532,7 @@ pub const tests = struct {
                 var msg = try Message.create();
                 try msg.writer.writeAll("Hello");
                 try msg.writer.flush();
-                try req_pipe.sender().submit(msg, .{});
+                try req_pipe.sender().submit(msg);
             }
             break:send_req;
         }
@@ -541,7 +541,7 @@ pub const tests = struct {
                 var msg = try rep_pipe.receiver().drain();
                 try msg.writer.writeAll("World");
                 try msg.writer.flush();
-                try rep_pipe.sender().submit(msg, .{});
+                try rep_pipe.sender().submit(msg);
             }
             break:reply_rep;
         }

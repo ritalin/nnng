@@ -23,14 +23,23 @@ const PipeLock = root.PipeLock;
 /// 
 
 owner: *const anyopaque,
+options: Options = .{},
 vtable: VTable,
 
 const Self = @This();
 const Sender = Self;
 
+pub fn withOpt(self: *const Self, options: Options) Self {
+    return .{
+        .owner = self.owner,
+        .options = options,
+        .vtable = self.vtable,
+    };
+}
+
 /// Sends a message.
-pub fn submit(self: *const Self, msg: Message, options: Options) SendError!void {
-    return (self.vtable.on_submit)(self, msg, options);
+pub fn submit(self: *const Self, msg: Message) SendError!void {
+    return (self.vtable.on_submit)(self, msg, self.options);
 }
 
 pub fn lock(self: *const Self) PipeLock {

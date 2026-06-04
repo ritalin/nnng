@@ -537,7 +537,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -561,7 +564,10 @@ pub const tests = struct {
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -627,7 +633,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -635,7 +644,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try req_pipe2.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe2.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -669,7 +681,10 @@ pub const tests = struct {
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -732,7 +747,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Hello World");
             try msg.writer.flush();
-            try req_socket1.pipe.item.sender().submit(msg, .{});
+            try req_socket1.pipe.item.sender().submit(msg);
             break:send_msg;
         }
 
@@ -756,7 +771,7 @@ pub const tests = struct {
                 msg.writer.advance(msg.len());
                 try msg.writer.writeAll("!!");
                 try msg.writer.flush();
-                try results[0].ready.sender().submit(msg, .{});
+                try results[0].ready.sender().submit(msg);
                 self.called = true;
             }
         };
@@ -809,7 +824,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try req_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try req_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 
@@ -844,7 +862,10 @@ pub const tests = struct {
                                 msg.writer.advance(msg.len());
                                 try msg.writer.writeAll("Baz");
                                 try msg.writer.flush();
-                                try channel.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+                                try channel.sender()
+                                    .withOpt(.{ .flags = .{.nonblocking = true }})
+                                    .submit(msg)
+                                ;
                             }
                         }
                     }
@@ -905,7 +926,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            try sender
+                .withOpt(.{ .flags = .{.nonblocking = false }})
+                .submit(msg, )
+            ;
             break:send;
         }
         send: {
@@ -915,7 +939,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try sender.submit(msg, .{ .flags = .{.nonblocking = false }});
+            try sender
+                .withOpt(.{ .flags = .{.nonblocking = false }})
+                .submit(msg, )
+            ;
             break:send;
         }
 
@@ -1017,7 +1044,10 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("topic|Foo");
             try msg.writer.flush();
-            try pub_pipe1.sender().submit(msg, .{ .flags = .{.nonblocking = true }});
+            try pub_pipe1.sender()
+                .withOpt(.{ .flags = .{.nonblocking = true }})
+                .submit(msg)
+            ;
             break:send_req;
         }
 

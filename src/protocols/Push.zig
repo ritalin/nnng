@@ -183,7 +183,7 @@ pub const tests = struct {
         const v0 = "Hello";
         try msg.writer.writeAll(v0);
         try msg.writer.flush(); // Need to sync written length
-        try push_pipe.sender().submit(msg, .{});
+        try push_pipe.sender().submit(msg);
 
         // REP (recv)
         msg = try pull_pipe.receiver().drain();
@@ -235,7 +235,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Foo");
             try msg.writer.flush();
-            try push_pipe.sender().submit(msg, .{});
+            try push_pipe.sender().submit(msg);
 
             msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
@@ -249,7 +249,7 @@ pub const tests = struct {
             var msg = try Message.create();
             try msg.writer.writeAll("Bar");
             try msg.writer.flush();
-            try push_pipe.sender().submit(msg, .{});
+            try push_pipe.sender().submit(msg);
 
             msg = try pull_pipe.receiver().drain();
             defer msg.deinit();
