@@ -22,14 +22,8 @@ pub const SyncSenderImpl = struct {
 
         std.log.scoped(.nnng).debug("Start sending:Sync/id: {}, socket: {}, flags: {}, len(edit): {}, len(commit): {}", .{pipe.id, pipe.socket.raw_socket, options, msg.writer.end, msg.len()});
 
-        c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
-        c.nng_send_aio(pipe.socket.raw_socket, pipe.aio_slot.raw_aio);
-
-        if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.aio_slot.raw_aio);
-        }
-
-        const err = c.nng_aio_result( pipe.aio_slot.raw_aio);
+        const flags: c_int = if (options.flags.nonblocking) c.NNG_FLAG_NONBLOCK else 0;
+        const err = c.nng_sendmsg(pipe.socket.raw_socket, msg.raw_msg, flags);
         if (err != 0) {
             return errors.send_error(err);
         }
@@ -89,13 +83,8 @@ pub const ParallelSenderImpl = struct {
 
         std.log.scoped(.nnng).debug("Start sending:Parallel/id: {}, flags(discard): {}, len(edit): {}, len(commit): {}", .{pipe.id, options, msg.writer.end, msg.len()});
 
-        c.nng_aio_set_msg(pipe.aio_slot.raw_aio, msg.raw_msg);
-        c.nng_ctx_send(pipe.raw_ctx, pipe.aio_slot.raw_aio);
-
-        if (!options.flags.nonblocking) {
-            c.nng_aio_wait(pipe.aio_slot.raw_aio);
-        }
-        const err = c.nng_aio_result(pipe.aio_slot.raw_aio);
+        const flags: c_int = if (options.flags.nonblocking) c.NNG_FLAG_NONBLOCK else 0;
+        const err = c.nng_ctx_sendmsg(pipe.raw_ctx, msg.raw_msg, flags);
         if (err != 0) {
             return errors.send_error(@intCast(err));
         }
