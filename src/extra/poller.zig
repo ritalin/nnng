@@ -191,7 +191,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         /// undefined ordering.
         /// 
         pub const Sync = struct {
-            pub fn attach(poller: *Poller, pipe: *Pipe.Sync) !void {
+            pub fn attach(poller: *Poller, pipe: *Pipe.Sync, options: ChannelOptions) !void {
                 var iter = pipe.iter();
                 while (iter.next()) |p| {
                     const channel: poller_impl.PollerPipe = .{
@@ -202,6 +202,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                             .on_cancel = poller_impl.PollerPipeImpl.Sync.cancelSession,
                         },
                         .features = p.features,
+                        .options = options,
                     };
 
                     try poller.attachInternal(p.id, channel);
@@ -220,7 +221,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
         /// Concurrent receive operations are not synchronized and ordering is undefined.
         /// 
         pub const Parallel = struct {
-            pub fn attach(poller: *Poller, pipe: *Pipe.Parallel) !void {
+            pub fn attach(poller: *Poller, pipe: *Pipe.Parallel, options: ChannelOptions) !void {
                 var iter = pipe.iter();
                 while (iter.next()) |p| {
                     const channel: poller_impl.PollerPipe = .{
@@ -231,6 +232,7 @@ pub fn ReceivePoller(comptime buffer_size: comptime_int) type {
                             .on_cancel = poller_impl.PollerPipeImpl.Parallel.cancelSession,
                         },
                         .features = p.features,
+                        .options = options,
                     };
 
                     try poller.attachInternal(p.id, channel);
@@ -311,17 +313,32 @@ pub const Timeout = union {
     msec: u64,
 };
 
+pub const ChannelOptions = struct {
+    // transport-level bit flags
+    // interpreted only by upper-layer
+    raw_mask: u64 = 0,
+};
+
 /// ReadyChannel is a logical entry point for creating Sender/Receiver
 /// interfaces bound to an execution context.
 ///
-/// ## Options behavior
-/// Options passed through Sender/Receiver construction are accepted
-/// for API compatibility but do not affect behavior in this mode.
-///
-/// The execution behavior is fixed by the underlying Poller configuration.
+/// /// ReadyChannel has options defined at different abstraction levels.
 /// 
+/// ## Pipe-level Options (Sender / Receiver)
+/// These options control execution behavior of the legacy I/O model
+/// (timeout, non-blocking mode, retry semantics, etc.).
+///
+/// In Poller-driven execution mode, these options are ignored and have no effect,
+/// because execution semantics are fully determined by the Poller configuration.
+///
+/// ## Channel-level Options (raw_mask)
+/// These are transport-level bit flags used as routing/dispatch hints.
+/// They describe structural constraints for message handling and are interpreted
+/// only at the upper dispatch layer.
+///
 pub const ReadyChannel = struct {
     id: u64,
+    options: ChannelOptions,
     impl: poller_impl.PollerPipeImpl,
     vtable: struct {
         on_submit: *const fn (sender: *const PipeSender, msg: Message, options: PipeSender.Options) SendError!void,
@@ -403,7 +420,7 @@ pub const tests = struct {
         try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
-        try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &rep_socket.pipe, .{});
         try std.testing.expectEqual(1, poller.poller_pipes.count());
         try std.testing.expectEqual(1, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -427,7 +444,7 @@ pub const tests = struct {
         try rep_socket.transport.start(.{});
         defer rep_socket.close();
 
-        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe, .{});
         try std.testing.expectEqual(3, poller.poller_pipes.count());
         try std.testing.expectEqual(3, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -459,7 +476,7 @@ pub const tests = struct {
         try req_socket.transport.start(.{});
         defer req_socket.close();
 
-        try TestPoller.Sync.attach(&poller, &req_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &req_socket.pipe, .{});
         try std.testing.expectEqual(1, poller.poller_pipes.count());
         try std.testing.expectEqual(0, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -491,7 +508,7 @@ pub const tests = struct {
         try req_socket.transport.start(.{});
         defer req_socket.close();
 
-        try TestPoller.Parallel.attach(&poller, &req_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &req_socket.pipe, .{});
         try std.testing.expectEqual(3, poller.poller_pipes.count());
         try std.testing.expectEqual(0, poller.ready_set.count());
         try std.testing.expectEqual(0, poller.in_fight_set.count());
@@ -568,6 +585,7 @@ pub const tests = struct {
                                     .withOpt(.{ .flags = .{.nonblocking = true }})
                                     .submit(msg)
                                 ;
+                                try std.testing.expectEqualDeep(ChannelOptions{ .raw_mask = 1 }, channel.options);
                             }
                         }
                     }
@@ -576,7 +594,7 @@ pub const tests = struct {
             }
         };
 
-        try TestPoller.Sync.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Sync.attach(&poller, &rep_socket.pipe, .{ .raw_mask = 1 });
         _ = try poller.poll(PollCallback.replyMsg);
 
         receive_msg: {
@@ -697,7 +715,7 @@ pub const tests = struct {
         var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe, .{});
 
         var accept: usize = 0;
         while (accept < 2) {
@@ -779,7 +797,7 @@ pub const tests = struct {
         var cb: PollCallback = .{ .poller = try TestPoller.create(ctx), .tasks = cpus * 2 };
         defer cb.poller.deinit();
 
-        try TestPoller.Parallel.attach(&cb.poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&cb.poller, &rep_socket.pipe, .{});
         try std.testing.expectEqual(cpus * 2, cb.poller.poller_pipes.count());
         try std.testing.expectEqual(cpus * 2, cb.poller.ready_set.count());
         try std.testing.expectEqual(0, cb.poller.in_fight_set.count());
@@ -878,7 +896,7 @@ pub const tests = struct {
         var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &rep_socket.pipe, .{});
 
         const accept= try poller.poll(PollCallback.replyMsg);
         try std.testing.expectEqual(1, accept);
@@ -992,7 +1010,7 @@ pub const tests = struct {
         defer cb.poller.deinit();
         defer cb.receive_queue.deinit(std.testing.allocator);
 
-        try TestPoller.Sync.attach(&cb.poller, &pull_socket.pipe);
+        try TestPoller.Sync.attach(&cb.poller, &pull_socket.pipe, .{});
         _ = try cb.poller.poll(PollCallback.replyMsg);
 
         try std.testing.expectEqual(2, cb.receive_queue.len);
@@ -1089,7 +1107,7 @@ pub const tests = struct {
         var poller = try TestPoller.create(ctx);
         defer poller.deinit();
 
-        try TestPoller.Parallel.attach(&poller, &sub_socket.pipe);
+        try TestPoller.Parallel.attach(&poller, &sub_socket.pipe, .{});
 
         var accept: usize = 0;
         while (accept < 3) {

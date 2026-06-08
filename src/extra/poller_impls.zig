@@ -7,6 +7,7 @@ const c = @import("c");
 const Sender = @import("../message/Sender.zig");
 const TryPipeReceiver = root.TryPipeReceiver;
 const ReadyChannel = @import("./poller.zig").ReadyChannel;
+const ChannelOptions = @import("./poller.zig").ChannelOptions;
 
 const Pipe = root.Pipe;
 const PipeLock = root.PipeLock;
@@ -19,10 +20,11 @@ pub const PollerPipe = struct {
     owner: *anyopaque,
     vtable: struct {
         on_pipe_id: *const fn (owner: *anyopaque) u64,
-        on_wait_complete: *const fn (owner: *anyopaque, channel: *ReadyChannel) ReceiveError!void,
+        on_wait_complete: *const fn (owner: *anyopaque, channel: *ReadyChannel, options: ChannelOptions) ReceiveError!void,
         on_cancel: *const fn (owner: *const anyopaque) void,
     },
     features: Pipe.Features,
+    options: ChannelOptions,
 
     const Self = @This();
 
@@ -31,7 +33,7 @@ pub const PollerPipe = struct {
     }
 
     pub fn wait(self: *const Self, channel: *ReadyChannel) ReceiveError!void {
-        return (self.vtable.on_wait_complete)(self.owner, channel);
+        return (self.vtable.on_wait_complete)(self.owner, channel, self.options);
     }
 
     pub fn cancel(self: Self) void {
@@ -54,7 +56,7 @@ pub const PollerPipeImpl = union(enum) {
             return pipe.id;
         }
 
-        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
+        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel, options: ChannelOptions) ReceiveError!void {
             const pipe: *Pipe.Sync.Item = @ptrCast(@alignCast(ptr));
 
             if (pipe.fsm.currentState() == .completed) {
@@ -80,6 +82,7 @@ pub const PollerPipeImpl = union(enum) {
 
             channel.* = .{
                 .id = pipe.id,
+                .options = options,
                 .impl = .{ .sync = self },
                 .vtable = .{
                     .on_submit = Self.submitMessage,
@@ -166,7 +169,7 @@ pub const PollerPipeImpl = union(enum) {
             return pipe.id;
         }
 
-        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel) ReceiveError!void {
+        pub fn waitComplete(ptr: *anyopaque, channel: *ReadyChannel, options: ChannelOptions) ReceiveError!void {
             const pipe: *Pipe.Parallel.Item = @ptrCast(@alignCast(ptr));
 
             if (pipe.fsm.currentState() == .completed) {
@@ -192,6 +195,7 @@ pub const PollerPipeImpl = union(enum) {
 
             channel.* = .{
                 .id = pipe.id,
+                .options = options,
                 .impl = .{ .parallel = self },
                 .vtable = .{
                     .on_submit = Self.submitMessage,
