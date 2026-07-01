@@ -11,20 +11,25 @@ pub fn build(b: *std.Build) void {
         orelse b.graph.environ_map.get("NNG_PREFIX").?
     ;
 
-    const c = b.addTranslateC(.{
+    const include_path: std.Build.LazyPath = .{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include" }) };
+
+    const mod_interop_c = b.addTranslateC(.{
         .target = target,
         .optimize = optimize,
         .root_source_file = b.path("include/nng/nng-bundle.h"),
         .link_libc = true,
     });
-    c.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "include" }) });
+    mod_interop_c.addIncludePath(include_path);
+
+    const nng_core = mod_interop_c.addModule("nng-core");
+    nng_core.addIncludePath(include_path);
 
     const mod = b.addModule("nnng", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "c", .module = c.createModule() },
+            .{ .name = "c", .module = nng_core },
         }
     });
     mod.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ pkg_prefix, "lib" }) });
