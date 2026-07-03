@@ -10,7 +10,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 jobs:
   build:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         zig-version: ["latest"]
