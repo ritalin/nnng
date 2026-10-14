@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    @import("set_version").VersionSetterStep.addStep(b);
+    @import("set_version").VersionSetterStep.addStep(b, .{.dep_name = "set_version"});
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});

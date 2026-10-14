@@ -172,9 +172,16 @@ test "write message payload with extend capacity" {
     try msg.writer.writeAll(s);
     try std.testing.expectEqual(ALIGNED_BUF_SIZE , msg.len());
 
-    try msg.writer.writeAll(s ** 897);
+    try msg.writer.writeAll(repeatStr(s, 897));
+    // try msg.writer.writeAll(s ** 897);
     try std.testing.expectEqual(ALIGNED_BUF_SIZE * 11, msg.len()); // align{ (1024 + 5 x 897) x 2, 1024 }
 
     try msg.writer.flush();
     try std.testing.expectEqual(s.len * 900, msg.len());
+}
+
+fn repeatStr(comptime s: []const u8, comptime n: usize) []const u8 {
+    const unit = @as([s.len]u8, s[0..s.len].*);
+    const str: [n * s.len]u8 = @bitCast(@as([n][s.len]u8, @splat(unit)));
+    return &str;
 }
