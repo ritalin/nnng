@@ -4,10 +4,10 @@ Provides a composable abstraction layer with Sender/Receiver capabilities.
 
 ## Requirements
 
-Zig 0.16.0 or later
+Zig 0.17.0 or later
 nng 1.11 (preinstalled)
 
-Tested on macOS 15.7.4.
+Tested on macOS 26.5.2.
 
 ## Installation
 
